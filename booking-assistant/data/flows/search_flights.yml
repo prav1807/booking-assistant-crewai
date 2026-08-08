@@ -21,11 +21,73 @@ flows:
           user has not said it. If the trip type is not stated, leave empty.
         ask_before_filling: true
 
-      - collect: origin
+      - id: ask_origin
+        collect: origin
         description: The city or airport the passenger is departing from.
 
-      - collect: destination
+      - action: action_resolve_origin
+        next:
+          - if: slots.origin_code is not null
+            then: ask_destination
+          - if: slots.origin_options_text is not null
+            then: ask_origin_choice
+          - else: unknown_origin
+
+      - id: unknown_origin
+        action: utter_unknown_origin
+        next: ask_origin
+
+      - id: ask_origin_choice
+        collect: origin_choice
+        description: >
+          The specific airport the passenger wants to depart from, chosen from
+          the list just offered. May be a three-letter IATA code or an
+          airport name. Only fill from the user's explicit choice.
+
+      - id: select_origin
+        action: action_select_origin_airport
+        next:
+          - if: slots.origin_code is not null
+            then: ask_destination
+          - else: invalid_origin_choice
+
+      - id: invalid_origin_choice
+        action: utter_invalid_airport_choice
+        next: ask_origin_choice
+
+      - id: ask_destination
+        collect: destination
         description: The city or airport the passenger is travelling to.
+
+      - action: action_resolve_destination
+        next:
+          - if: slots.destination_code is not null
+            then: ask_departure_date
+          - if: slots.destination_options_text is not null
+            then: ask_destination_choice
+          - else: unknown_destination
+
+      - id: unknown_destination
+        action: utter_unknown_destination
+        next: ask_destination
+
+      - id: ask_destination_choice
+        collect: destination_choice
+        description: >
+          The specific airport the passenger wants to arrive at, chosen from
+          the list just offered. May be a three-letter IATA code or an
+          airport name. Only fill from the user's explicit choice.
+
+      - id: select_destination
+        action: action_select_destination_airport
+        next:
+          - if: slots.destination_code is not null
+            then: ask_departure_date
+          - else: invalid_destination_choice
+
+      - id: invalid_destination_choice
+        action: utter_invalid_airport_choice
+        next: ask_destination_choice
 
       - id: ask_departure_date
         collect: departure_date
@@ -55,16 +117,37 @@ flows:
 
       - id: ask_passenger_count
         collect: passenger_count
-        description: The total number of passengers travelling.
+        description: >
+          The total number of passengers travelling, as a digit.
+          Convert words to digits: "two" becomes 2, "a couple" becomes 2,
+          "just me" becomes 1. Output only the number.
 
       - collect: cabin_class
         description: >
-          The travel cabin. Must be exactly one of economy, premium_economy, business, or first.
+          The travel cabin. Must be exactly one of these four values:
+          economy, premium_economy, business, first.
+          Map "first class" to "first", "business class" to "business",
+          "premium economy" to "premium_economy", and "economy class" or
+          "coach" to "economy". Never output any other value.
+
+      - action: utter_searching
+
+      - action: action_search_flights
         next:
-          - if: slots.trip_type = "return"
-            then:
-              - action: utter_search_summary_return
-                next: END
-          - else:
-              - action: utter_search_summary_one_way
-                next: END
+          - if: slots.search_status = "ok"
+            then: offers_found
+          - if: slots.search_status = "empty"
+            then: no_offers
+          - else: search_failed
+
+      - id: offers_found
+        action: utter_offers_found
+        next: END
+
+      - id: no_offers
+        action: utter_no_offers
+        next: END
+
+      - id: search_failed
+        action: utter_search_failed
+        next: END
