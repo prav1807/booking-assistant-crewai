@@ -1,0 +1,70 @@
+flows:
+  greet_user:
+    description: >
+      Handle greetings and conversation openers. Use this flow when the user
+      says hello, hi, hey, good morning, good evening, or otherwise greets the
+      assistant without asking a question or requesting a task.
+    steps:
+      - action: utter_greet
+  search_flights:
+    description: >
+      Search for available flights. Use this flow when the user wants to find,
+      search for, look up or book a flight, or mentions wanting to travel
+      between two places on some date.
+    steps:
+      - collect: trip_type
+        description: >
+          Whether the journey is one_way, return, or multi_city.
+          Only fill this slot if the user has explicitly stated the trip type,
+          for example by saying "one way", "return", "round trip", or naming
+          multiple destinations. Never infer or default the trip type when the
+          user has not said it. If the trip type is not stated, leave empty.
+        ask_before_filling: true
+
+      - collect: origin
+        description: The city or airport the passenger is departing from.
+
+      - collect: destination
+        description: The city or airport the passenger is travelling to.
+
+      - id: ask_departure_date
+        collect: departure_date
+        description: The date of the outbound flight.
+
+      - action: action_validate_departure_date
+        next:
+          - if: slots.departure_date is null
+            then:
+              - action: utter_invalid_departure_date
+                next: ask_departure_date
+          - if: slots.trip_type = "return"
+            then: ask_return_date
+          - else: ask_passenger_count
+
+      - id: ask_return_date
+        collect: return_date
+        description: The date of the return flight.
+
+      - action: action_validate_return_date
+        next:
+          - if: slots.return_date is null
+            then:
+              - action: utter_invalid_return_date
+                next: ask_return_date
+          - else: ask_passenger_count
+
+      - id: ask_passenger_count
+        collect: passenger_count
+        description: The total number of passengers travelling.
+
+      - collect: cabin_class
+        description: >
+          The travel cabin. Must be exactly one of economy, premium_economy, business, or first.
+        next:
+          - if: slots.trip_type = "return"
+            then:
+              - action: utter_search_summary_return
+                next: END
+          - else:
+              - action: utter_search_summary_one_way
+                next: END
