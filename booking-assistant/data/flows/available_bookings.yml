@@ -1,0 +1,43 @@
+version: "3.1"
+
+flows:
+  available_bookings:
+    description: >
+      Present the flight options found by a search and let the user choose one.
+      Only used after a flight search has returned offers.
+    steps:
+      - id: present
+        action: action_present_offers
+
+      - action: utter_show_offers
+
+      - id: ask_choice
+        collect: offer_choice
+        description: >
+          The user's choice from the numbered list of flight options just shown.
+          Capture whatever the user says here, including a number, a phrase like
+          "the cheapest one" or "the first", or an out-of-range number.
+          Always fill this slot from the user's reply — never route elsewhere,
+          and never pick an option on the user's behalf.
+        ask_before_filling: true
+
+      - id: select
+        action: action_select_offer
+        next:
+          - if: slots.offer_expired
+            then: expired
+          - if: slots.selected_offer_id is not null
+            then: selected
+          - else: invalid_choice
+
+      - id: invalid_choice
+        action: utter_invalid_offer_choice
+        next: ask_choice
+
+      - id: expired
+        action: utter_offer_expired
+        next: END
+
+      - id: selected
+        action: utter_offer_selected
+        next: END

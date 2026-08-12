@@ -142,7 +142,10 @@ flows:
 
       - id: offers_found
         action: utter_offers_found
-        next: END
+        next: show_offers
+
+      - id: show_offers
+        link: available_bookings
 
       - id: no_offers
         action: utter_no_offers

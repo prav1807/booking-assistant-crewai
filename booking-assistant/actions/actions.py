@@ -6,14 +6,17 @@ import dateparser
 from rasa_sdk import Action, Tracker
 from rasa_sdk.events import EventType, SlotSet
 from rasa_sdk.executor import CollectingDispatcher
-from .duffel_client import format_options, match_choice, resolve_place
 
 from .duffel_client import (
     DuffelError,
+    MAX_OFFERS_SHOWN,
     build_slices,
     create_offer_request,
+    format_offer,
+    format_offer_list,
     format_options,
     match_choice,
+    minutes_until_expiry,
     resolve_place,
     summarise_offer,
 )
@@ -21,9 +24,9 @@ from .duffel_client import (
 logger = logging.getLogger(__name__)
 
 MAX_OFFERS_STORED = 20
+MAX_BOOKING_HORIZON_DAYS = 365  # how far ahead a departure may be booked
+MAX_TRIP_DURATION_DAYS = 365  # how long a trip may last, from departure
 
-MAX_BOOKING_HORIZON_DAYS = 365   # how far ahead a departure may be booked
-MAX_TRIP_DURATION_DAYS = 365     # how long a trip may last, from departure
 
 def normalise_date(
     raw: Any,
@@ -43,29 +46,29 @@ def normalise_date(
 
     text = str(raw).strip()
 
-        # The command generator often normalises dates to ISO before this action
-        # runs. dateparser with DATE_ORDER="DMY" cannot read that shape, so try
-        # ISO first and fall back to natural-language parsing.
+    # The command generator often normalises dates to ISO before this action
+    # runs. dateparser with DATE_ORDER="DMY" cannot read that shape, so try
+    # ISO first and fall back to natural-language parsing.
     resolved: Optional[date] = None
     try:
         resolved = date.fromisoformat(text)
     except ValueError:
-            parsed = dateparser.parse(
-                text,
-                settings={
-                    "PREFER_DATES_FROM": "future",
-                    "RELATIVE_BASE": datetime.combine(today, datetime.min.time()),
-                    "DATE_ORDER": "DMY",
-                },
-            )
-            if parsed is None:
-                return None
-            resolved = parsed.date()
+        parsed = dateparser.parse(
+            text,
+            settings={
+                "PREFER_DATES_FROM": "future",
+                "RELATIVE_BASE": datetime.combine(today, datetime.min.time()),
+                "DATE_ORDER": "DMY",
+            },
+        )
+        if parsed is None:
+            return None
+        resolved = parsed.date()
 
     if resolved < floor:
-            return None
+        return None
     if (resolved - floor).days > max_days_ahead:
-            return None
+        return None
 
     return resolved.isoformat()
 
@@ -85,7 +88,9 @@ class ActionValidateDepartureDate(Action):
 
         logger.info(
             "DEPARTURE DATE CHECK | raw=%r | today=%r | result=%r",
-            raw, date.today(), result,
+            raw,
+            date.today(),
+            result,
         )
 
         return [SlotSet("departure_date", result)]
@@ -117,7 +122,9 @@ class ActionValidateReturnDate(Action):
 
         logger.info(
             "RETURN DATE CHECK | raw=%r | departure=%r | result=%r",
-            raw, departure, result,
+            raw,
+            departure,
+            result,
         )
 
         return [SlotSet("return_date", result)]
@@ -130,7 +137,10 @@ def _resolve_into(field_name: str, tracker: Tracker) -> List[EventType]:
 
     logger.info(
         "PLACE RESOLVE | field=%s | raw=%r | status=%s | code=%r",
-        field_name, raw, result.status, result.code,
+        field_name,
+        raw,
+        result.status,
+        result.code,
     )
 
     if result.status == "resolved":
@@ -170,7 +180,9 @@ def _select_from(field_name: str, tracker: Tracker) -> List[EventType]:
 
     logger.info(
         "AIRPORT CHOICE | field=%s | choice=%r | matched=%r",
-        field_name, choice, matched,
+        field_name,
+        choice,
+        matched,
     )
 
     if not matched:
@@ -217,8 +229,6 @@ class ActionSelectDestinationAirport(Action):
 
     def run(self, dispatcher, tracker, domain) -> List[EventType]:
         return _select_from("destination", tracker)
-
-    MAX_OFFERS_STORED = 20
 
 
 class ActionSearchFlights(Action):
@@ -272,8 +282,10 @@ class ActionSearchFlights(Action):
 
         logger.info(
             "SEARCH OK | returned=%d | stored=%d | cheapest=%s %s | expires=%s",
-            len(offers), len(summaries),
-            summaries[0]["total_amount"], summaries[0]["total_currency"],
+            len(offers),
+            len(summaries),
+            summaries[0]["total_amount"],
+            summaries[0]["total_currency"],
             summaries[0]["expires_at"],
         )
 
@@ -281,4 +293,88 @@ class ActionSearchFlights(Action):
             SlotSet("search_status", "ok"),
             SlotSet("offers", summaries),
             SlotSet("offer_count", float(len(offers))),
+        ]
+
+
+class ActionPresentOffers(Action):
+    def name(self) -> Text:
+        return "action_present_offers"
+
+    def run(
+        self,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> List[EventType]:
+        offers = tracker.get_slot("offers") or []
+
+        if not offers:
+            return [SlotSet("offers_text", None)]
+
+        shortlist = offers[:MAX_OFFERS_SHOWN]
+        remaining = minutes_until_expiry(shortlist[0])
+
+        logger.info(
+            "PRESENT OFFERS | shown=%d | of=%d | expires_in_min=%s",
+            len(shortlist),
+            len(offers),
+            remaining,
+        )
+
+        return [
+            SlotSet("offers_text", format_offer_list(shortlist)),
+            SlotSet("offers_shown", float(len(shortlist))),
+            SlotSet("offer_choice", None),
+            SlotSet("selected_offer_id", None),
+        ]
+
+
+class ActionSelectOffer(Action):
+    def name(self) -> Text:
+        return "action_select_offer"
+
+    def run(
+        self,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> List[EventType]:
+        choice = tracker.get_slot("offer_choice")
+        offers = tracker.get_slot("offers") or []
+        shortlist = offers[:MAX_OFFERS_SHOWN]
+
+        index = None
+        if choice is not None:
+            digits = "".join(ch for ch in str(choice) if ch.isdigit())
+            if digits:
+                index = int(digits)
+
+        if index is None or not (1 <= index <= len(shortlist)):
+            logger.info("OFFER CHOICE INVALID | choice=%r", choice)
+            return [SlotSet("offer_choice", None)]
+
+        chosen = shortlist[index - 1]
+        remaining = minutes_until_expiry(chosen)
+
+        logger.info(
+            "OFFER SELECTED | index=%d | id=%s | %s %s | expires_in_min=%s",
+            index,
+            chosen["id"],
+            chosen["total_currency"],
+            chosen["total_amount"],
+            remaining,
+        )
+
+        # Offer expiry (F7): an offer that has already lapsed cannot be booked.
+        if remaining is not None and remaining <= 0:
+            return [
+                SlotSet("offer_choice", None),
+                SlotSet("selected_offer_id", None),
+                SlotSet("offer_expired", True),
+            ]
+
+        return [
+            SlotSet("selected_offer_id", chosen["id"]),
+            SlotSet("selected_offer_text", format_offer(index, chosen)),
+            SlotSet("offer_expired", False),
         ]

@@ -6,6 +6,9 @@ from typing import Any, Dict, List, Optional
 import requests
 from dotenv import load_dotenv
 
+import re
+from datetime import datetime, timezone
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -13,6 +16,7 @@ logger = logging.getLogger(__name__)
 DUFFEL_API_BASE = "https://api.duffel.com"
 DUFFEL_VERSION = "v2"
 REQUEST_TIMEOUT_SECONDS = 10
+MAX_OFFERS_SHOWN = 5
 
 # Development-time cache. Replaced by Redis once the integration is stable.
 _place_cache: Dict[str, List[Dict[str, Any]]] = {}
@@ -287,3 +291,72 @@ def summarise_offer(offer: Dict[str, Any]) -> Dict[str, Any]:
         "expires_at": offer.get("expires_at", ""),
         "legs": legs,
     }
+
+_DURATION_RE = re.compile(
+    r"P(?:(?P<days>\d+)D)?T?(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?"
+)
+
+
+def format_duration(iso_duration: str) -> str:
+    """Convert an ISO 8601 duration (P1DT4H30M) into '28h 30m'."""
+    if not iso_duration:
+        return ""
+    match = _DURATION_RE.match(iso_duration)
+    if not match:
+        return ""
+    days = int(match.group("days") or 0)
+    hours = int(match.group("hours") or 0)
+    minutes = int(match.group("minutes") or 0)
+    total_hours = days * 24 + hours
+    return f"{total_hours}h {minutes:02d}m"
+
+
+def format_time(iso_timestamp: str) -> str:
+    """Render a Duffel local departure/arrival time as '15 Sep 15:20'."""
+    if not iso_timestamp:
+        return ""
+    try:
+        dt = datetime.fromisoformat(iso_timestamp.replace("Z", "+00:00"))
+    except ValueError:
+        return iso_timestamp
+    return dt.strftime("%d %b %H:%M")
+
+
+def format_leg(leg: Dict[str, Any]) -> str:
+    stops = leg.get("stops", 0)
+    stop_text = "direct" if stops == 0 else f"{stops} stop" if stops == 1 else f"{stops} stops"
+    return (
+        f"{leg['origin']} → {leg['destination']}  "
+        f"{format_time(leg['departing_at'])} – {format_time(leg['arriving_at'])}  "
+        f"({format_duration(leg['duration'])}, {stop_text})"
+    )
+
+
+def format_offer(index: int, offer: Dict[str, Any]) -> str:
+    """Render one offer for display. Every value comes from the provider."""
+    lines = [
+        f"{index}. {offer['airline']} — "
+        f"{offer['total_currency']} {offer['total_amount']}"
+    ]
+    for leg in offer.get("legs", []):
+        lines.append(f"   {format_leg(leg)}")
+    return "\n".join(lines)
+
+
+def format_offer_list(offers: List[Dict[str, Any]]) -> str:
+    return "\n\n".join(
+        format_offer(i, o) for i, o in enumerate(offers[:MAX_OFFERS_SHOWN], start=1)
+    )
+
+
+def minutes_until_expiry(offer: Dict[str, Any]) -> Optional[int]:
+    """Minutes remaining before this offer can no longer be booked."""
+    raw = offer.get("expires_at")
+    if not raw:
+        return None
+    try:
+        expires = datetime.fromisoformat(raw.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    delta = expires - datetime.now(timezone.utc)
+    return int(delta.total_seconds() // 60)
