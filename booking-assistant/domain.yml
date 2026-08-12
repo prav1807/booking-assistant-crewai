@@ -1,0 +1,325 @@
+version: "3.1"
+
+slots:
+  trip_type:
+    type: categorical
+    values:
+      - one_way
+      - return
+      - multi_city
+    mappings:
+      - type: from_llm
+
+  origin:
+    type: text
+    mappings:
+      - type: from_llm
+
+  destination:
+    type: text
+    mappings:
+      - type: from_llm
+
+  departure_date:
+    type: text
+    mappings:
+      - type: from_llm
+
+  return_date:
+    type: text
+    mappings:
+      - type: from_llm
+
+  passenger_count:
+    type: float
+    mappings:
+      - type: from_llm
+
+  cabin_class:
+    type: categorical
+    values:
+      - economy
+      - premium_economy
+      - business
+      - first
+    mappings:
+      - type: from_llm
+
+  origin_code:
+    type: text
+    mappings:
+      - type: controlled
+
+  origin_display:
+    type: text
+    mappings:
+      - type: controlled
+
+  origin_options:
+    type: list
+    mappings:
+      - type: controlled
+
+  origin_options_text:
+    type: text
+    mappings:
+      - type: controlled
+
+  origin_choice:
+    type: text
+    mappings:
+      - type: from_llm
+
+  destination_code:
+    type: text
+    mappings:
+      - type: controlled
+
+  destination_display:
+    type: text
+    mappings:
+      - type: controlled
+
+  destination_options:
+    type: list
+    mappings:
+      - type: controlled
+
+  destination_options_text:
+    type: text
+    mappings:
+      - type: controlled
+
+  destination_choice:
+    type: text
+    mappings:
+      - type: from_llm
+
+  search_status:
+    type: text
+    mappings:
+      - type: controlled
+
+  offers:
+    type: list
+    mappings:
+      - type: controlled
+
+  offer_count:
+    type: float
+    mappings:
+      - type: controlled
+
+# Available Bookings Slots ...
+
+  offers_text:
+    type: text
+    mappings:
+      - type: controlled
+
+  offers_shown:
+    type: float
+    mappings:
+      - type: controlled
+
+  offer_choice:
+    type: text
+    mappings:
+      - type: from_llm
+
+  selected_offer_id:
+    type: text
+    mappings:
+      - type: controlled
+
+  selected_offer_text:
+    type: text
+    mappings:
+      - type: controlled
+
+  offer_expired:
+    type: bool
+    mappings:
+      - type: controlled
+  
+  given_name:
+    type: text
+    mappings:
+      - type: from_llm
+
+  family_name:
+    type: text
+    mappings:
+      - type: from_llm
+
+  born_on:
+    type: text
+    mappings:
+      - type: from_llm
+
+  passenger_title:
+    type: text
+    mappings:
+      - type: from_llm
+
+  passenger_gender:
+    type: text
+    mappings:
+      - type: from_llm
+
+  passenger_email:
+    type: text
+    mappings:
+      - type: from_llm
+
+  passenger_phone:
+    type: text
+    mappings:
+      - type: from_llm
+
+responses:
+  utter_greet:
+    - text: "Hi! I'm Emi, your virtual flight assistant. I can help you in flight search and booking. Where would you like to fly?"
+
+  utter_ask_trip_type:
+    - text: "Is this a one-way trip, a return trip, or multi-city?"
+
+  utter_ask_origin:
+    - text: "Which city or airport are you flying from? [Departure city/airport]"
+
+  utter_ask_destination:
+    - text: "And where are you flying to? [Arrival city/airport]"
+
+  utter_ask_departure_date:
+    - text: "What date would you like to depart? [Departure date]"
+
+  utter_ask_return_date:
+    - text: "And what date would you like to return? [Return date]"
+
+  utter_ask_passenger_count:
+    - text: "How many passengers are travelling?"
+
+  utter_ask_cabin_class:
+    - text: "Which cabin would you like — economy, premium economy, business, or first?"
+
+  utter_ask_origin_choice:
+    - text: "{origin_options_text}\n\nWhich airport would you like to depart from?"
+
+  utter_ask_destination_choice:
+    - text: "{destination_options_text}\n\nWhich airport would you like to arrive at?"
+
+  utter_unknown_origin:
+    - text: "Sorry, I couldn't find that departure city or airport. Could you try again — a city name or airport code both work."
+
+  utter_unknown_destination:
+    - text: "Sorry, I couldn't find that arrival city or airport. Could you try again — a city name or airport code both work."
+
+  utter_invalid_airport_choice:
+    - text: "Sorry, I didn't recognise that as one of the listed airports. Please pick one from the list — the three-letter code is easiest."
+
+  utter_place_lookup_failed:
+    - text: "I'm having trouble looking up airports right now. Please try again in a moment."
+
+  utter_search_summary_one_way:
+    - text: "Here's what I have: one-way from {origin_display} to {destination_display}, departing {departure_date}, {passenger_count} passenger(s), {cabin_class}. (Flight search is not connected yet.)"
+
+  utter_search_summary_return:
+    - text: "Here's what I have: return from {origin_display} to {destination_display}, departing {departure_date}, returning {return_date}, {passenger_count} passenger(s), {cabin_class}. (Flight search is not connected yet.)"
+  utter_invalid_departure_date:
+    - text: "Sorry, I couldn't read that as a valid departure date. It needs to be a real date within the next year. Could you give it as a day, month and year — for example 30 August 2026?"
+
+  utter_invalid_return_date:
+    - text: "Sorry, that return date doesn't work — it needs to be a real date on or after your departure date. Could you try again?"
+
+  utter_searching:
+    - text: "Let me search for flights — this can take a few seconds."
+
+  utter_search_failed:
+    - text: "Sorry, I couldn't complete the flight search just now. Please try again in a moment."
+
+  utter_no_offers:
+    - text: "I couldn't find any flights matching that search. We can try different dates or nearby airports."
+
+  utter_offers_found:
+    - text: "I found {offer_count} options. Here are the best ones."
+
+  utter_show_offers:
+    - text: "Here are the best options I found:\n\n{offers_text}"
+
+  utter_ask_offer_choice:
+    - text: "Which one would you like? Reply with its number."
+
+  utter_invalid_offer_choice:
+    - text: "Sorry, I didn't catch which option you meant. Please reply with the number shown next to it."
+
+  utter_offer_expired:
+    - text: "That fare has just expired — airline prices are only held for a short time. Let me search again for you."
+
+  utter_offer_selected:
+    - text: "Good choice:\n\n{selected_offer_text}\n\nNext I'll need the passenger details."
+
+  utter_passenger_intro:
+    - text: "Now I need the passenger details. These must match the traveller's passport exactly, since the ticket can't be changed to a different name."
+
+  utter_ask_given_name:
+    - text: "What's the passenger's first name, as it appears on their passport?"
+
+  utter_invalid_given_name:
+    - text: "That doesn't look like a valid first name. Please use letters only, as shown on the passport."
+
+  utter_ask_family_name:
+    - text: "And the family name, as on the passport?"
+
+  utter_invalid_family_name:
+    - text: "That doesn't look like a valid family name. Please use letters only, as shown on the passport."
+
+  utter_ask_born_on:
+    - text: "What's their date of birth?"
+
+  utter_invalid_born_on:
+    - text: "I couldn't read that as a valid date of birth. This booking is for adult passengers only, so it needs to be a real past date for someone aged 18 or over."
+
+  utter_ask_passenger_title:
+    - text: "What title should I use — Mr, Ms, Mrs, Miss or Dr?"
+
+  utter_invalid_passenger_title:
+    - text: "Please choose one of: Mr, Ms, Mrs, Miss or Dr."
+
+  utter_ask_passenger_gender:
+    - text: "The airline's booking system requires this to be recorded as male or female. Which should I enter?"
+
+  utter_invalid_passenger_gender:
+    - text: "The airline system only accepts male or female here. Please enter one of those."
+
+  utter_ask_passenger_email:
+    - text: "What's the passenger's own email address? The airline sends disruption notices here, and it must be the traveller's own address."
+
+  utter_invalid_passenger_email:
+    - text: "That doesn't look like a valid email address. Please check and try again."
+
+  utter_ask_passenger_phone:
+    - text: "And a contact phone number, with the country code — for example +2305551234?"
+
+  utter_invalid_passenger_phone:
+    - text: "I need the number in international format, starting with + and the country code, for example +2305551234."
+
+  utter_passenger_details_done:
+    - text: "Thank you. I have the passenger details for {passenger_title} {given_name} {family_name}."
+
+actions:
+    - action_validate_departure_date
+    - action_validate_return_date
+    - action_resolve_origin
+    - action_resolve_destination
+    - action_select_origin_airport
+    - action_select_destination_airport
+    - action_search_flights
+    - action_present_offers
+    - action_select_offer
+    - action_validate_given_name
+    - action_validate_family_name
+    - action_validate_dob
+    - action_validate_title
+    - action_validate_gender
+    - action_validate_email
+    - action_validate_phone
