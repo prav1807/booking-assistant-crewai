@@ -3,6 +3,7 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Text
 
 import dateparser
+from matplotlib.pylab import choice
 from rasa_sdk import Action, Tracker
 from rasa_sdk.events import EventType, SlotSet
 from rasa_sdk.executor import CollectingDispatcher
@@ -19,6 +20,11 @@ from .duffel_client import (
     minutes_until_expiry,
     resolve_place,
     summarise_offer,
+    normalise_email,
+    normalise_gender,
+    normalise_name,
+    normalise_phone,
+    normalise_title,
 )
 
 logger = logging.getLogger(__name__)
@@ -342,10 +348,34 @@ class ActionSelectOffer(Action):
         choice = tracker.get_slot("offer_choice")
         offers = tracker.get_slot("offers") or []
         shortlist = offers[:MAX_OFFERS_SHOWN]
-
         index = None
         if choice is not None:
-            digits = "".join(ch for ch in str(choice) if ch.isdigit())
+            text = str(choice).strip().lower()
+
+            # Ordinal and preference words a user may reasonably use.
+            # The shortlist is already sorted cheapest-first, so "cheapest"
+            # is position 1 by construction, not by model judgement.
+            word_positions = {
+                "cheapest": 1,
+                "first": 1,
+                "1st": 1,
+                "second": 2,
+                "2nd": 2,
+                "third": 3,
+                "3rd": 3,
+                "fourth": 4,
+                "4th": 4,
+                "fifth": 5,
+                "5th": 5,
+            }
+
+        for word, position in word_positions.items():
+            if word in text:
+                index = position
+                break
+
+        if index is None:
+            digits = "".join(ch for ch in text if ch.isdigit())
             if digits:
                 index = int(digits)
 
@@ -378,3 +408,111 @@ class ActionSelectOffer(Action):
             SlotSet("selected_offer_text", format_offer(index, chosen)),
             SlotSet("offer_expired", False),
         ]
+MIN_ADULT_AGE_YEARS = 18
+MAX_AGE_YEARS = 120
+
+
+def validate_dob(raw: Any) -> Optional[str]:
+    """Date of birth must be a real past date giving a plausible adult age.
+
+    The MVP books adults only, so anyone under 18 is rejected rather than
+    silently reclassified as a child fare (see Chapter 5).
+    """
+    if raw in (None, ""):
+        return None
+
+    text = str(raw).strip()
+    born: Optional[date] = None
+    try:
+        born = date.fromisoformat(text)
+    except ValueError:
+        parsed = dateparser.parse(
+            text,
+            settings={"PREFER_DATES_FROM": "past", "DATE_ORDER": "DMY"},
+        )
+        if parsed is None:
+            return None
+        born = parsed.date()
+
+    today = date.today()
+    if born >= today:
+        return None
+
+    age = today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+    if age < MIN_ADULT_AGE_YEARS or age > MAX_AGE_YEARS:
+        return None
+
+    return born.isoformat()
+
+
+def _validated(slot: str, value: Optional[str]) -> List[EventType]:
+    logger.info("FIELD CHECK | slot=%s | accepted=%s", slot, value is not None)
+    return [SlotSet(slot, value)]
+
+
+class ActionValidateGivenName(Action):
+    def name(self) -> Text:
+        return "action_validate_given_name"
+
+    def run(self, dispatcher, tracker, domain) -> List[EventType]:
+        return _validated(
+            "given_name", normalise_name(tracker.get_slot("given_name"))
+        )
+
+
+class ActionValidateFamilyName(Action):
+    def name(self) -> Text:
+        return "action_validate_family_name"
+
+    def run(self, dispatcher, tracker, domain) -> List[EventType]:
+        return _validated(
+            "family_name", normalise_name(tracker.get_slot("family_name"))
+        )
+
+
+class ActionValidateDob(Action):
+    def name(self) -> Text:
+        return "action_validate_dob"
+
+    def run(self, dispatcher, tracker, domain) -> List[EventType]:
+        return _validated("born_on", validate_dob(tracker.get_slot("born_on")))
+
+
+class ActionValidateTitle(Action):
+    def name(self) -> Text:
+        return "action_validate_title"
+
+    def run(self, dispatcher, tracker, domain) -> List[EventType]:
+        return _validated(
+            "passenger_title", normalise_title(tracker.get_slot("passenger_title"))
+        )
+
+
+class ActionValidateGender(Action):
+    def name(self) -> Text:
+        return "action_validate_gender"
+
+    def run(self, dispatcher, tracker, domain) -> List[EventType]:
+        return _validated(
+            "passenger_gender", normalise_gender(tracker.get_slot("passenger_gender"))
+        )
+
+
+class ActionValidateEmail(Action):
+    def name(self) -> Text:
+        return "action_validate_email"
+
+    def run(self, dispatcher, tracker, domain) -> List[EventType]:
+        return _validated(
+            "passenger_email", normalise_email(tracker.get_slot("passenger_email"))
+        )
+
+
+class ActionValidatePhone(Action):
+    def name(self) -> Text:
+        return "action_validate_phone"
+
+    def run(self, dispatcher, tracker, domain) -> List[EventType]:
+        return _validated(
+            "passenger_phone", normalise_phone(tracker.get_slot("passenger_phone"))
+        )

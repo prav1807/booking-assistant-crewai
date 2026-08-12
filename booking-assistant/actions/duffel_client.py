@@ -9,6 +9,8 @@ from dotenv import load_dotenv
 import re
 from datetime import datetime, timezone
 
+import re as _re
+
 load_dotenv()
 
 logger = logging.getLogger(__name__)
@@ -32,6 +34,7 @@ class PlaceResolution:
 
     status is one of: resolved, ambiguous, unknown, error
     """
+
     status: str
     code: Optional[str] = None
     display: Optional[str] = None
@@ -118,11 +121,12 @@ def resolve_place(query: str) -> PlaceResolution:
         return PlaceResolution(status="resolved", code=code, display=display)
 
     if place_type == "city":
-       airports = [
-            a for a in top.get("airports", [])
+        airports = [
+            a
+            for a in top.get("airports", [])
             if a.get("iata_code") and _is_commercial(a)
         ]
-    if len(airports) == 1:
+        if len(airports) == 1:
             only = airports[0]
             code = only["iata_code"]
             return PlaceResolution(
@@ -131,12 +135,12 @@ def resolve_place(query: str) -> PlaceResolution:
                 display=f"{top.get('name', '')} — {only.get('name', code)} ({code})",
             )
 
-    if len(airports) > 1:
-        return PlaceResolution(
-            status="ambiguous",
-            display=top.get("name", query),
-            options=[_airport_option(a) for a in airports],
-        )
+        if len(airports) > 1:
+            return PlaceResolution(
+                status="ambiguous",
+                display=top.get("name", query),
+                options=[_airport_option(a) for a in airports],
+            )
 
     return PlaceResolution(status="unknown")
 
@@ -146,7 +150,9 @@ def format_options(city: str, options: List[Dict[str, str]]) -> str:
     return f"{city} has several airports:\n" + "\n".join(lines)
 
 
-def match_choice(choice: str, options: List[Dict[str, str]]) -> Optional[Dict[str, str]]:
+def match_choice(
+    choice: str, options: List[Dict[str, str]]
+) -> Optional[Dict[str, str]]:
     """Match a user's free-text choice against the offered airports."""
     if not choice:
         return None
@@ -162,6 +168,7 @@ def match_choice(choice: str, options: List[Dict[str, str]]) -> Optional[Dict[st
     if len(matches) == 1:
         return matches[0]
     return None
+
 
 # Airports without scheduled commercial service. Duffel's suggestions endpoint
 # returns these alongside commercial airports, and offering them to a user
@@ -182,6 +189,7 @@ NON_COMMERCIAL_MARKERS = (
 def _is_commercial(airport: Dict[str, Any]) -> bool:
     name = (airport.get("name") or "").lower()
     return not any(marker in name for marker in NON_COMMERCIAL_MARKERS)
+
 
 # ---------------------------------------------------------------------------
 # Offer requests
@@ -248,8 +256,9 @@ def create_offer_request(
         raise DuffelError(f"Could not reach Duffel: {exc}") from exc
 
     if response.status_code not in (200, 201):
-        logger.error("OFFER REQUEST FAILED | %s | %s",
-                     response.status_code, response.text[:500])
+        logger.error(
+            "OFFER REQUEST FAILED | %s | %s", response.status_code, response.text[:500]
+        )
         raise DuffelError(
             f"Duffel returned {response.status_code}: {response.text[:200]}"
         )
@@ -290,7 +299,11 @@ def summarise_offer(offer: Dict[str, Any]) -> Dict[str, Any]:
         "total_currency": offer.get("total_currency", ""),
         "expires_at": offer.get("expires_at", ""),
         "legs": legs,
+        "passenger_ids": [
+            p.get("id") for p in offer.get("passengers", []) if p.get("id")
+        ],
     }
+
 
 _DURATION_RE = re.compile(
     r"P(?:(?P<days>\d+)D)?T?(?:(?P<hours>\d+)H)?(?:(?P<minutes>\d+)M)?"
@@ -324,7 +337,9 @@ def format_time(iso_timestamp: str) -> str:
 
 def format_leg(leg: Dict[str, Any]) -> str:
     stops = leg.get("stops", 0)
-    stop_text = "direct" if stops == 0 else f"{stops} stop" if stops == 1 else f"{stops} stops"
+    stop_text = (
+        "direct" if stops == 0 else f"{stops} stop" if stops == 1 else f"{stops} stops"
+    )
     return (
         f"{leg['origin']} → {leg['destination']}  "
         f"{format_time(leg['departing_at'])} – {format_time(leg['arriving_at'])}  "
@@ -360,3 +375,56 @@ def minutes_until_expiry(offer: Dict[str, Any]) -> Optional[int]:
         return None
     delta = expires - datetime.now(timezone.utc)
     return int(delta.total_seconds() // 60)
+
+
+EMAIL_RE = _re.compile(r"^[^@\s]+@[^@\s]+\.[a-z]{2,}$", _re.I)
+E164_RE = _re.compile(r"^\+[1-9]\d{7,14}$")
+
+VALID_TITLES = ("mr", "ms", "mrs", "miss", "dr")
+VALID_GENDERS = ("m", "f")
+
+
+def normalise_title(raw: str) -> Optional[str]:
+    if not raw:
+        return None
+    text = str(raw).strip().lower().rstrip(".")
+    return text if text in VALID_TITLES else None
+
+
+def normalise_gender(raw: str) -> Optional[str]:
+    """Duffel accepts only 'm' or 'f' — a constraint of the airline systems
+    it fronts, not a design choice of this system (see Chapter 5)."""
+    if not raw:
+        return None
+    text = str(raw).strip().lower()
+    if text in ("m", "male", "man"):
+        return "m"
+    if text in ("f", "female", "woman"):
+        return "f"
+    return None
+
+
+def normalise_email(raw: str) -> Optional[str]:
+    if not raw:
+        return None
+    text = str(raw).strip()
+    return text if EMAIL_RE.match(text) else None
+
+
+def normalise_phone(raw: str) -> Optional[str]:
+    """Duffel requires E.164 format, e.g. +2305551234."""
+    if not raw:
+        return None
+    text = _re.sub(r"[\s\-()]", "", str(raw).strip())
+    return text if E164_RE.match(text) else None
+
+
+def normalise_name(raw: str) -> Optional[str]:
+    if not raw:
+        return None
+    text = " ".join(str(raw).split())
+    if len(text) < 2 or len(text) > 40:
+        return None
+    if not all(ch.isalpha() or ch in " -'" for ch in text):
+        return None
+    return text

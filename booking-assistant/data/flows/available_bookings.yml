@@ -40,4 +40,7 @@ flows:
 
       - id: selected
         action: utter_offer_selected
-        next: END
+        next: collect_passenger
+
+      - id: collect_passenger
+        link: passenger_details

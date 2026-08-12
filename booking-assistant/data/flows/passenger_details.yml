@@ -1,0 +1,127 @@
+version: "3.1"
+
+flows:
+  passenger_details:
+    description: >
+      Collect the traveller's identity and contact details after a flight
+      option has been chosen. Only used once an offer has been selected.
+    steps:
+      - action: utter_passenger_intro
+
+      - id: ask_given_name
+        collect: given_name
+        description: >
+          The passenger's first (given) name exactly as printed on their
+          passport. Only fill from what the user explicitly provides.
+        ask_before_filling: true
+
+      - action: action_validate_given_name
+        next:
+          - if: slots.given_name is null
+            then: invalid_given_name
+          - else: ask_family_name
+
+      - id: invalid_given_name
+        action: utter_invalid_given_name
+        next: ask_given_name
+
+      - id: ask_family_name
+        collect: family_name
+        description: >
+          The passenger's family (last) name exactly as printed on their
+          passport. Only fill from what the user explicitly provides.
+        ask_before_filling: true
+
+      - action: action_validate_family_name
+        next:
+          - if: slots.family_name is null
+            then: invalid_family_name
+          - else: ask_born_on
+
+      - id: invalid_family_name
+        action: utter_invalid_family_name
+        next: ask_family_name
+
+      - id: ask_born_on
+        collect: born_on
+        description: The passenger's date of birth as shown on their passport.
+        ask_before_filling: true
+
+      - action: action_validate_dob
+        next:
+          - if: slots.born_on is null
+            then: invalid_born_on
+          - else: ask_passenger_title
+
+      - id: invalid_born_on
+        action: utter_invalid_born_on
+        next: ask_born_on
+
+      - id: ask_passenger_title
+        collect: passenger_title
+        description: >
+          The passenger's title. Must be one of mr, ms, mrs, miss or dr.
+
+      - action: action_validate_title
+        next:
+          - if: slots.passenger_title is null
+            then: invalid_passenger_title
+          - else: ask_passenger_gender
+
+      - id: invalid_passenger_title
+        action: utter_invalid_passenger_title
+        next: ask_passenger_title
+
+      - id: ask_passenger_gender
+        collect: passenger_gender
+        description: >
+          The gender recorded on the passenger's travel document.
+          Must be either m or f. Never infer this from the passenger's
+          name or title — only fill it from what the user states.
+        ask_before_filling: true
+
+      - action: action_validate_gender
+        next:
+          - if: slots.passenger_gender is null
+            then: invalid_passenger_gender
+          - else: ask_passenger_email
+
+      - id: invalid_passenger_gender
+        action: utter_invalid_passenger_gender
+        next: ask_passenger_gender
+
+      - id: ask_passenger_email
+        collect: passenger_email
+        description: The passenger's own email address.
+        ask_before_filling: true
+
+      - action: action_validate_email
+        next:
+          - if: slots.passenger_email is null
+            then: invalid_passenger_email
+          - else: ask_passenger_phone
+
+      - id: invalid_passenger_email
+        action: utter_invalid_passenger_email
+        next: ask_passenger_email
+
+      - id: ask_passenger_phone
+        collect: passenger_phone
+        description: >
+          The passenger's phone number in international format, beginning
+          with a plus sign and country code.
+        ask_before_filling: true
+
+      - action: action_validate_phone
+        next:
+          - if: slots.passenger_phone is null
+            then: invalid_passenger_phone
+          - else: details_done
+
+      - id: invalid_passenger_phone
+        action: utter_invalid_passenger_phone
+        next: ask_passenger_phone
+
+      - id: details_done
+        action: utter_passenger_details_done
+        next: END
