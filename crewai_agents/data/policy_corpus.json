@@ -1,0 +1,74 @@
+[
+  {
+    "id": "iata-bag-carry-on",
+    "source": "IATA Passenger Baggage Rules",
+    "topic": "carry-on baggage",
+    "text": "Most airlines allow one piece of carry-on (cabin) baggage per passenger, typically not exceeding 7-10 kg and with maximum dimensions of 55 x 40 x 20 cm (or 22 x 14 x 9 inches). Some airlines also permit one small personal item such as a handbag or laptop bag. Exact allowances vary by airline and fare class; passengers should verify with their carrier before travel."
+  },
+  {
+    "id": "iata-bag-checked",
+    "source": "IATA Passenger Baggage Rules",
+    "topic": "checked baggage",
+    "text": "Checked baggage allowances depend on the airline, route, and fare class. Economy tickets typically include one checked bag of 20-23 kg, while business and first class may allow two bags of up to 32 kg each. Excess baggage fees apply when baggage exceeds the included allowance in weight, number of pieces, or dimensions. Some promotional or basic economy fares may not include any checked baggage."
+  },
+  {
+    "id": "iata-bag-oversize",
+    "source": "IATA Passenger Baggage Rules",
+    "topic": "oversized baggage",
+    "text": "Baggage exceeding standard dimensions (typically total linear dimensions of 158 cm / 62 inches for checked bags) is classified as oversized and may incur surcharges. Items such as sporting equipment, musical instruments, and mobility aids may require special handling arrangements and should be declared to the airline at the time of booking or at least 48 hours before departure."
+  },
+  {
+    "id": "iata-dg-batteries",
+    "source": "IATA Dangerous Goods Regulations (passenger guidance)",
+    "topic": "lithium batteries",
+    "text": "Spare lithium batteries must be carried in carry-on baggage only, not in checked luggage. Lithium-ion batteries must not exceed 100 Wh (watt-hours) per battery without airline approval; batteries between 100 Wh and 160 Wh may be carried with airline approval, limited to two spare batteries per passenger. Batteries over 160 Wh are forbidden on passenger aircraft. All spare batteries must have terminals protected against short circuit."
+  },
+  {
+    "id": "iata-dg-liquids",
+    "source": "IATA Dangerous Goods Regulations (passenger guidance)",
+    "topic": "liquids in carry-on",
+    "text": "Liquids, aerosols, and gels (LAGs) in carry-on baggage must comply with the 100 ml / 3.4 oz rule: each container must hold no more than 100 ml, and all containers must fit within a single transparent, resealable plastic bag of no more than 1 litre capacity. Exceptions may apply for essential medicines and baby food/milk, but these must be declared at the security checkpoint."
+  },
+  {
+    "id": "iata-dg-prohibited",
+    "source": "IATA Dangerous Goods Regulations (passenger guidance)",
+    "topic": "prohibited items",
+    "text": "Items strictly prohibited in both carry-on and checked baggage include: explosives and incendiary substances, compressed gases (except small personal aerosols), flammable liquids and solids, oxidising materials, toxic and infectious substances, radioactive materials, and corrosives. Firearms and ammunition may only be transported under specific airline procedures and must be declared and packed according to regulations."
+  },
+  {
+    "id": "eu-1107-mobility",
+    "source": "EU Regulation 1107/2006",
+    "topic": "reduced mobility assistance",
+    "text": "Under EU Regulation 1107/2006, air carriers and airport managing bodies must provide assistance to disabled persons and persons with reduced mobility at no additional charge. This includes assistance at the airport (check-in, boarding, disembarkation) and during the flight. Passengers requiring assistance should notify the airline or travel agent at least 48 hours before departure. Airlines may not refuse boarding on the grounds of disability except for justified safety reasons, which must be communicated in writing."
+  },
+  {
+    "id": "eu-1107-mobility-aids",
+    "source": "EU Regulation 1107/2006",
+    "topic": "mobility aid transport",
+    "text": "Airlines must transport up to two pieces of mobility equipment per disabled passenger free of charge, including wheelchairs, walkers, and other assistive devices. Electric wheelchairs with spillable batteries must have the battery disconnected and terminals insulated. Airlines must make all reasonable efforts to accommodate mobility aids in the aircraft cabin where size permits, otherwise they must be transported in the hold with priority handling."
+  },
+  {
+    "id": "us-382-disability",
+    "source": "US 14 CFR Part 382",
+    "topic": "disability nondiscrimination (US)",
+    "text": "Under US 14 CFR Part 382, air carriers may not discriminate against qualified individuals with a disability. Airlines must provide accessible facilities, allow service animals in the cabin (subject to DOT service animal rules), permit passengers to travel with assistive devices, and make reasonable modifications to policies and practices. Carriers must designate a Complaints Resolution Official (CRO) who is available to resolve disability-related complaints at each airport."
+  },
+  {
+    "id": "us-382-seating",
+    "source": "US 14 CFR Part 382",
+    "topic": "disability seating accommodations",
+    "text": "US regulations require airlines to provide specific seating accommodations for passengers with disabilities. This includes movable armrests on at least half of aisle seats, and priority seating assignments for passengers who need a specific seat due to a disability (such as adjacent seating for a personal care attendant). Airlines must not charge extra for these seating accommodations."
+  },
+  {
+    "id": "general-fare-refund",
+    "source": "General airline fare rules",
+    "topic": "ticket refunds and cancellations",
+    "text": "Refund policies vary significantly by fare type. Fully flexible or refundable tickets can typically be cancelled for a full refund up to departure. Non-refundable tickets may allow cancellation with a credit for future travel minus a change fee, or may be entirely non-refundable. Under EU Regulation 261/2004, passengers are entitled to a full refund if the airline cancels the flight, regardless of fare type. Passengers should check fare conditions before purchase."
+  },
+  {
+    "id": "general-fare-changes",
+    "source": "General airline fare rules",
+    "topic": "ticket changes and rebooking",
+    "text": "The ability to change a booking (date, route, or passenger name) depends on the fare rules. Flexible fares usually permit free changes; economy fares may charge a change fee plus any fare difference. Name changes are typically not permitted on most fare types, though some airlines allow minor spelling corrections. Changes are subject to availability on the new date or route."
+  }
+]

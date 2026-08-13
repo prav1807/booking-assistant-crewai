@@ -142,15 +142,24 @@ booking-assistant-crewai/
 │       └── flows/
 │           ├── search_flights.yml
 │           └── available_bookings.yml
-└── crewai_agents/                    # CrewAI autonomous agent
+└── crewai_agents/                    # CrewAI autonomous agents
     ├── __init__.py
-    ├── main.py                       # CLI entry point
-    ├── flight_search_crew.py         # Agent, task, crew definitions
+    ├── main.py                       # CLI entry point (flight search)
+    ├── flight_search_crew.py         # Flight search agent + crew
+    ├── validation_crew.py            # Booking request validation crew
+    ├── policy_crew.py                # Policy & visa eligibility crew
     ├── tools/
     │   ├── __init__.py
-    │   └── flight_tools.py           # FlightSearchTool + AirportLookupTool
+    │   ├── flight_tools.py           # FlightSearchTool + AirportLookupTool
+    │   ├── validation_tools.py       # Date, route, cabin, passenger validators
+    │   └── policy_tools.py           # PolicyRetrievalTool + VisaEligibilityTool
+    ├── data/
+    │   ├── policy_corpus.json        # Policy knowledge base (IATA, EU, US regs)
+    │   └── passport-index-tidy.csv   # Visa eligibility dataset (39,601 pairs)
     └── tests/
-        └── test_edge_cases.py        # Edge case test suite (13 tests)
+        ├── test_edge_cases.py        # Flight search tool tests (13 tests)
+        ├── test_validation_crew.py   # Validation crew tests
+        └── test_policy_crew.py       # Policy & visa crew tests
 ```
 
 ## Conversation Flows (Rasa)
@@ -158,9 +167,10 @@ booking-assistant-crewai/
 1. **search_flights** — Collects trip type, origin, destination, dates, passengers, cabin class → searches Duffel for flights
 2. **available_bookings** — Presents flight offers and lets the user select one
 
-## CrewAI Agent Capabilities
+## CrewAI Crews (3 of 5 implemented)
 
-The flight search agent handles:
+### 1. FlightSearchCrew (Roles 2+3 — Search & Rank)
+Searches and compares flights via the Duffel API:
 - **One-way & round-trip** flights
 - **City name resolution** — automatically looks up IATA codes (e.g. "Mauritius" → MRU)
 - **Multiple cabin classes** — economy, premium_economy, business, first
@@ -168,11 +178,39 @@ The flight search agent handles:
 - **Vague requests** — interprets "next month", "cheapest", etc.
 - **Graceful error handling** — invalid routes, past dates, nonexistent airports
 
+```bash
+python -X utf8 -m crewai_agents.main "Flights from Mauritius to Dubai on 20 Sep 2026, economy, 1 passenger"
+```
+
+### 2. ValidationCrew (Role 1 — Validate & Build Request)
+Validates all booking slots and builds the Duffel API request payload:
+- **Deterministic pre-check** — instant tool-level validation (no LLM needed)
+- **Route validation** — IATA code format, origin ≠ destination
+- **Date validation** — real dates, not in the past, within booking horizon
+- **Consistency checks** — return trips need return dates, cabin class normalization
+- **Structured verdict** — returns `{valid, errors, warnings, duffel_request}`
+
+### 3. PolicyCrew (Role 4 — Grounded Policy & Visa Answers)
+Answers policy and visa eligibility questions from grounded sources:
+- **PolicyRetrievalAgent** — RAG over Qdrant-indexed policy corpus (IATA baggage, dangerous goods, EU 1107/2006, US 14 CFR 382, fare rules) using BGE-small-en-v1.5 embeddings
+- **EligibilityAgent** — structured visa lookup from passport-index dataset (39,601 passport-destination pairs)
+- **Grounded only** — every answer cites its source; never fabricates policy information
+
+### Not Yet Implemented
+- **BookingReviewCrew** (Role 5) — pre-booking payload verification
+- **GuardrailCrew** (Role 6) — PII filter + outbound message safety review
+
 ## Testing
 
 ```bash
-# Run edge case tests for the CrewAI tools
+# Flight search tool edge cases (13 tests)
 python -X utf8 crewai_agents\tests\test_edge_cases.py
+
+# Validation crew (valid + invalid request tests)
+python -X utf8 -m crewai_agents.tests.test_validation_crew
+
+# Policy & visa crew (baggage policy + visa eligibility tests)
+python -X utf8 -m crewai_agents.tests.test_policy_crew
 ```
 
 ## Notes
