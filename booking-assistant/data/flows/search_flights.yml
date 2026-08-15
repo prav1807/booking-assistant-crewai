@@ -4,13 +4,23 @@ flows:
       Handle greetings and conversation openers. Use this flow when the user
       says hello, hi, hey, good morning, good evening, or otherwise greets the
       assistant without asking a question or requesting a task.
+
     steps:
       - action: utter_greet
+      
   search_flights:
     description: >
       Search for available flights. Use this flow when the user wants to find,
       search for, look up or book a flight, or mentions wanting to travel
       between two places on some date.
+    
+    persisted_slots:
+      - trip_type
+      - departure_date
+      - return_date
+      - passenger_count
+      - cabin_class
+
     steps:
       - collect: trip_type
         description: >
@@ -115,14 +125,32 @@ flows:
                 next: ask_return_date
           - else: ask_passenger_count
 
+      # This block has been commented as collecting only one passenger for the moment ...
+
+      # - id: ask_passenger_count
+      #   collect: passenger_count
+      #   description: >
+      #     The total number of passengers travelling, as a digit.
+      #     Convert words to digits: "two" becomes 2, "a couple" becomes 2,
+      #     "just me" becomes 1. Output only the number.
+
       - id: ask_passenger_count
         collect: passenger_count
         description: >
           The total number of passengers travelling, as a digit.
           Convert words to digits: "two" becomes 2, "a couple" becomes 2,
           "just me" becomes 1. Output only the number.
+        next:
+          - if: slots.passenger_count > 1
+            then: too_many_passengers
+          - else: ask_cabin_class
 
-      - collect: cabin_class
+      - id: too_many_passengers
+        action: utter_single_passenger_only
+        next: END
+      
+      - id: ask_cabin_class
+        collect: cabin_class
         description: >
           The travel cabin. Must be exactly one of these four values:
           economy, premium_economy, business, first.

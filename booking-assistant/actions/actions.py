@@ -3,7 +3,6 @@ from datetime import date, datetime
 from typing import Any, Dict, List, Optional, Text
 
 import dateparser
-from matplotlib.pylab import choice
 from rasa_sdk import Action, Tracker
 from rasa_sdk.events import EventType, SlotSet
 from rasa_sdk.executor import CollectingDispatcher
@@ -25,6 +24,21 @@ from .duffel_client import (
     normalise_name,
     normalise_phone,
     normalise_title,
+    create_order,
+    format_confirmation,
+    get_offer,
+    new_idempotency_key,
+)
+
+from .supabase_client import (
+    SupabaseError,
+    confirm_booking,
+    create_pending_booking,
+    fail_booking,
+    find_booking_by_key,
+    save_offer_snapshot,
+    save_passenger,
+    write_audit,
 )
 
 logger = logging.getLogger(__name__)
@@ -369,15 +383,15 @@ class ActionSelectOffer(Action):
                 "5th": 5,
             }
 
-        for word, position in word_positions.items():
-            if word in text:
-                index = position
-                break
+            for word, position in word_positions.items():
+                if word in text:
+                    index = position
+                    break
 
-        if index is None:
-            digits = "".join(ch for ch in text if ch.isdigit())
-            if digits:
-                index = int(digits)
+            if index is None:
+                digits = "".join(ch for ch in text if ch.isdigit())
+                if digits:
+                    index = int(digits)
 
         if index is None or not (1 <= index <= len(shortlist)):
             logger.info("OFFER CHOICE INVALID | choice=%r", choice)
@@ -516,3 +530,182 @@ class ActionValidatePhone(Action):
         return _validated(
             "passenger_phone", normalise_phone(tracker.get_slot("passenger_phone"))
         )
+
+
+class ActionCreateBooking(Action):
+    def name(self) -> Text:
+        return "action_create_booking"
+
+    def run(
+        self,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> List[EventType]:
+        sender_id = tracker.sender_id
+        offer_id = tracker.get_slot("selected_offer_id")
+        key = tracker.get_slot("idempotency_key")
+        order_type = tracker.get_slot("order_type") or "hold"
+
+        # Idempotency (FR14): if this key already produced a booking,
+        # return it rather than creating a second order.
+        try:
+            existing = find_booking_by_key(key)
+        except SupabaseError as exc:
+            logger.error("IDEMPOTENCY CHECK FAILED | %s", exc)
+            return [SlotSet("booking_status", "error")]
+
+        if existing and existing.get("status") == "confirmed":
+            logger.warning("DUPLICATE COMMIT PREVENTED | key=%s", key)
+            return [
+                SlotSet("booking_status", "ok"),
+                SlotSet("booking_reference", existing.get("booking_reference")),
+            ]
+
+        booking_id = existing["id"] if existing else None
+        if booking_id is None:
+            try:
+                row = create_pending_booking(
+                    sender_id, key, order_type,
+                    {
+                        "origin_code": tracker.get_slot("origin_code"),
+                        "destination_code": tracker.get_slot("destination_code"),
+                        "departure_date": tracker.get_slot("departure_date"),
+                        "return_date": tracker.get_slot("return_date"),
+                        "cabin_class": tracker.get_slot("cabin_class"),
+                    },
+                )
+                booking_id = row["id"]
+            except SupabaseError as exc:
+                logger.error("PENDING WRITE FAILED | %s", exc)
+                return [SlotSet("booking_status", "error")]
+
+        fresh = tracker.get_slot("repriced_offer") or {}
+        passenger_ids = (fresh.get("passengers") or [{}])
+        passenger = {
+            "id": passenger_ids[0].get("id"),
+            "given_name": tracker.get_slot("given_name"),
+            "family_name": tracker.get_slot("family_name"),
+            "born_on": tracker.get_slot("born_on"),
+            "title": tracker.get_slot("passenger_title"),
+            "gender": tracker.get_slot("passenger_gender"),
+            "email": tracker.get_slot("passenger_email"),
+            "phone_number": tracker.get_slot("passenger_phone"),
+        }
+
+        save_offer_snapshot(booking_id, fresh)
+
+        try:
+            order = create_order(
+                offer_id, [passenger], key, order_type,
+                fresh.get("total_amount"), fresh.get("total_currency"),
+            )
+        except DuffelError as exc:
+            fail_booking(booking_id, str(exc))
+            write_audit(sender_id, "order_failed", {"key": key, "error": str(exc)})
+            return [SlotSet("booking_status", "error")]
+
+        reference = order.get("booking_reference", "")
+        confirm_booking(
+            booking_id, order.get("id", ""), reference,
+            order.get("total_amount"), order.get("total_currency"),
+            (order.get("payment_status") or {}).get("payment_required_by"),
+        )
+        save_passenger(booking_id, {
+            "duffel_passenger_id": passenger["id"],
+            "given_name": passenger["given_name"],
+            "family_name": passenger["family_name"],
+            "born_on": passenger["born_on"],
+            "title": passenger["title"],
+            "gender": passenger["gender"],
+            "email": passenger["email"],
+            "phone_number": passenger["phone_number"],
+        })
+        write_audit(sender_id, "order_created",
+                    {"key": key, "order_id": order.get("id"), "ref": reference})
+
+        logger.info("ORDER OK | ref=%s | id=%s", reference, order.get("id"))
+
+        return [
+            SlotSet("booking_status", "ok"),
+            SlotSet("booking_reference", reference),
+        ]
+
+class ActionRepriceOffer(Action):
+    """Re-fetch the selected offer immediately before commitment (FR12).
+
+    The price the user agreed to may no longer be the price the airline
+    will charge. Re-pricing here, and comparing against what was shown,
+    is the mitigation for failure mode F7.
+    """
+
+    def name(self) -> Text:
+        return "action_reprice_offer"
+
+    def run(
+        self,
+        dispatcher: CollectingDispatcher,
+        tracker: Tracker,
+        domain: Dict[Text, Any],
+    ) -> List[EventType]:
+        offer_id = tracker.get_slot("selected_offer_id")
+        offers = tracker.get_slot("offers") or []
+
+        shown = next((o for o in offers if o.get("id") == offer_id), {})
+        shown_amount = shown.get("total_amount")
+
+        if not offer_id:
+            return [SlotSet("reprice_status", "gone")]
+
+        try:
+            fresh = get_offer(offer_id)
+        except DuffelError as exc:
+            logger.error("REPRICE FAILED | %s", exc)
+            return [SlotSet("reprice_status", "error")]
+
+        if fresh is None:
+            logger.info("REPRICE GONE | offer=%s", offer_id)
+            return [SlotSet("reprice_status", "gone")]
+
+        new_amount = fresh.get("total_amount")
+        currency = fresh.get("total_currency", "")
+        changed = str(shown_amount) != str(new_amount)
+
+        logger.info(
+            "REPRICE | offer=%s | shown=%s | now=%s | changed=%s",
+            offer_id, shown_amount, new_amount, changed,
+        )
+
+        passenger_line = (
+            f"{(tracker.get_slot('passenger_title') or '').title()} "
+            f"{tracker.get_slot('given_name')} {tracker.get_slot('family_name')}"
+        ).strip()
+
+        events: List[EventType] = [
+            SlotSet("repriced_offer", fresh),
+            SlotSet("confirmation_text", format_confirmation(fresh, passenger_line)),
+            SlotSet("idempotency_key", new_idempotency_key()),
+            SlotSet(
+                "order_type",
+                "hold"
+                if not (fresh.get("payment_requirements") or {}).get(
+                    "requires_instant_payment"
+                )
+                else "instant",
+            ),
+            SlotSet("booking_confirmed", None),
+        ]
+
+        if changed:
+            events.append(SlotSet("reprice_status", "changed"))
+            events.append(
+                SlotSet(
+                    "price_change_text",
+                    f"The price has changed from {currency} {shown_amount} "
+                    f"to {currency} {new_amount} since I showed you this option.",
+                )
+            )
+        else:
+            events.append(SlotSet("reprice_status", "same"))
+
+        return events

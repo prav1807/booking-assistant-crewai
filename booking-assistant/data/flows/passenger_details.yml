@@ -5,6 +5,16 @@ flows:
     description: >
       Collect the traveller's identity and contact details after a flight
       option has been chosen. Only used once an offer has been selected.
+
+    persisted_slots:
+      - given_name
+      - family_name
+      - born_on
+      - passenger_title
+      - passenger_gender
+      - passenger_email
+      - passenger_phone
+
     steps:
       - action: utter_passenger_intro
 
@@ -124,4 +134,7 @@ flows:
 
       - id: details_done
         action: utter_passenger_details_done
-        next: END
+        next: go_confirm
+
+      - id: go_confirm
+        link: confirm_and_book
