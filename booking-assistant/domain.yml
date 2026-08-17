@@ -141,6 +141,57 @@ slots:
     type: bool
     mappings:
       - type: controlled
+
+  # Crew integration slots
+  validation_passed:
+    type: bool
+    mappings:
+      - type: controlled
+
+  validation_reason:
+    type: text
+    mappings:
+      - type: controlled
+
+  validation_warnings:
+    type: list
+    mappings:
+      - type: controlled
+
+  duffel_request_payload:
+    type: any
+    mappings:
+      - type: controlled
+
+  crew_search_status:
+    type: text
+    mappings:
+      - type: controlled
+
+  crew_search_result:
+    type: text
+    mappings:
+      - type: controlled
+
+  policy_answer:
+    type: text
+    mappings:
+      - type: controlled
+
+  policy_sources:
+    type: list
+    mappings:
+      - type: controlled
+
+  passport_country:
+    type: text
+    mappings:
+      - type: from_llm
+
+  destination_country:
+    type: text
+    mappings:
+      - type: from_llm
   
   given_name:
     type: text
@@ -306,6 +357,21 @@ responses:
   utter_passenger_details_done:
     - text: "Thank you. I have the passenger details for {passenger_title} {given_name} {family_name}."
 
+  utter_validating:
+    - text: "Let me validate your booking details..."
+
+  utter_validation_failed:
+    - text: "There's an issue with your booking details: {validation_reason}. Could you correct that?"
+
+  utter_crew_searching:
+    - text: "Searching for the best flights — this may take a moment while I compare options..."
+
+  utter_crew_search_result:
+    - text: "{crew_search_result}"
+
+  utter_crew_search_failed:
+    - text: "Sorry, I couldn't complete the flight search right now. Please try again in a moment."
+
 actions:
     - action_validate_departure_date
     - action_validate_return_date
@@ -323,3 +389,6 @@ actions:
     - action_validate_gender
     - action_validate_email
     - action_validate_phone
+    - action_validate_booking
+    - action_crew_search
+    - action_answer_policy

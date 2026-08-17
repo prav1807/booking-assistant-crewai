@@ -130,7 +130,23 @@ flows:
           "premium economy" to "premium_economy", and "economy class" or
           "coach" to "economy". Never output any other value.
 
-      - action: utter_searching
+      # --- CrewAI ValidationCrew (Role 1) ---
+      - action: utter_validating
+
+      - id: validate_booking
+        action: action_validate_booking
+        next:
+          - if: slots.validation_passed
+            then: do_search
+          - else: validation_failed
+
+      - id: validation_failed
+        action: utter_validation_failed
+        next: ask_origin
+
+      # --- Flight search (original Duffel + CrewAI) ---
+      - id: do_search
+        action: utter_searching
 
       - action: action_search_flights
         next:
