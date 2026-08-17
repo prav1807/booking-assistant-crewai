@@ -12,19 +12,9 @@ Returns grounded answers with source citations, never fabricated information.
 from typing import Any, Dict
 
 from crewai import Agent, Crew, Process, Task
-from crewai import LLM
 
+from .llm_config import build_llm
 from .tools.policy_tools import PolicyRetrievalTool, VisaEligibilityTool
-
-
-def build_llm() -> LLM:
-    return LLM(
-        model="ollama/llama3.1:latest",
-        base_url="http://localhost:11434",
-        temperature=0.0,
-        timeout=300,
-        max_retries=2,
-    )
 
 
 def create_policy_retrieval_agent() -> Agent:

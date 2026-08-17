@@ -13,8 +13,8 @@ import json
 from typing import Any, Dict, Optional
 
 from crewai import Agent, Crew, Process, Task
-from crewai import LLM
 
+from .llm_config import build_llm
 from .tools.flight_tools import AirportLookupTool
 from .tools.validation_tools import (
     BuildDuffelRequestTool,
@@ -24,17 +24,6 @@ from .tools.validation_tools import (
     RouteValidationTool,
     TripTypeValidationTool,
 )
-
-
-def build_llm() -> LLM:
-    """Create the Ollama LLM instance for the crew."""
-    return LLM(
-        model="ollama/llama3.1:latest",
-        base_url="http://localhost:11434",
-        temperature=0.0,
-        timeout=300,
-        max_retries=2,
-    )
 
 
 def create_validator_agent() -> Agent:
