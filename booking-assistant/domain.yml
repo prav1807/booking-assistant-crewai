@@ -192,6 +192,11 @@ slots:
     type: text
     mappings:
       - type: from_llm
+
+  policy_question:
+    type: text
+    mappings:
+      - type: from_llm
   
   given_name:
     type: text
@@ -230,7 +235,10 @@ slots:
 
 responses:
   utter_greet:
-    - text: "Hi! I'm Emi, your virtual flight assistant. I can help you in flight search and booking. Where would you like to fly?"
+    - text: "Hi! I'm Emi, your virtual flight assistant. I can help you with flight search, booking, and travel policy questions. How can I help?"
+
+  utter_ask_policy_question:
+    - text: "What would you like to know? I can answer questions about baggage rules, visa requirements, fare conditions, disability assistance, and more."
 
   utter_ask_trip_type:
     - text: "Is this a one-way trip, a return trip, or multi-city?"

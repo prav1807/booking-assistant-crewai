@@ -167,8 +167,8 @@ class ActionAnswerPolicy(Action):
         tracker: Tracker,
         domain: Dict[Text, Any],
     ) -> List[EventType]:
-        # Get the latest user message as the policy question
-        question = tracker.latest_message.get("text", "")
+        # Use the policy_question slot (filled by the flow), fallback to latest message
+        question = tracker.get_slot("policy_question") or tracker.latest_message.get("text", "")
 
         logger.info("ACTION_ANSWER_POLICY | question=%s", question[:100])
 
