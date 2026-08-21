@@ -237,6 +237,26 @@ slots:
     type: text
     mappings:
       - type: controlled
+
+  booking_lookup_reference:
+    type: text
+    mappings:
+      - type: from_llm
+
+  booking_lookup_email:
+    type: text
+    mappings:
+      - type: from_llm
+
+  booking_retrieval_status:
+    type: text
+    mappings:
+      - type: controlled
+
+  booking_details_text:
+    type: text
+    mappings:
+      - type: controlled
   
   given_name:
     type: text
@@ -390,6 +410,9 @@ responses:
   utter_passenger_intro:
     - text: "Now I need the passenger details. These must match the traveller's passport exactly, since the ticket can't be changed to a different name."
 
+  utter_passenger_all_at_once:
+    - text: "Now I need the passenger details. Please provide all of the following — they must match the traveller's passport exactly:\n\n• First name\n• Last name\n• Title (Mr/Ms/Mrs/Miss/Dr)\n• Gender (male/female)\n• Date of birth\n• Email address\n• Phone number (with country code, e.g. +2305551234)\n\nYou can provide them all in one message."
+
   utter_ask_given_name:
     - text: "What's the passenger's first name, as it appears on their passport?"
 
@@ -474,6 +497,24 @@ responses:
   utter_verification_failed:
     - text: "I found an issue with the booking details: {verification_reason}. Please check and try again."
 
+  utter_ask_booking_lookup_reference:
+    - text: "Please provide your booking reference (PNR code) — it's usually a 6-character code from your confirmation email."
+
+  utter_ask_booking_lookup_email:
+    - text: "And the email address used when booking? I need this to verify it's your booking."
+
+  utter_booking_details:
+    - text: "Here are your booking details:\n\n{booking_details_text}"
+
+  utter_booking_not_found:
+    - text: "I couldn't find a booking with that reference. Please double-check the code and try again."
+
+  utter_booking_unauthorized:
+    - text: "The email address doesn't match the one on this booking. For security, I can only show booking details to the email address used during booking."
+
+  utter_booking_blocked:
+    - text: "I'm unable to show these booking details right now due to a security check. Please contact support for assistance."
+
 actions:
     - action_validate_departure_date
     - action_validate_return_date
@@ -498,3 +539,5 @@ actions:
     - action_answer_policy
     - action_verify_booking
     - action_guardrail_check
+    - action_retrieve_booking
+    - action_guardrail_booking_response

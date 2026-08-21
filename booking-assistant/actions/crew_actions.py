@@ -272,3 +272,84 @@ class ActionGuardrailCheck(Action):
             SlotSet("guardrail_passed", result.get("passed", True)),
             SlotSet("guardrail_reason", result.get("reason", "")),
         ]
+
+
+class ActionRetrieveBooking(Action):
+    """Retrieve a booking by reference + email verification."""
+
+    def name(self) -> Text:
+        return "action_retrieve_booking"
+
+    def run(self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]) -> List[EventType]:
+        reference = tracker.get_slot("booking_lookup_reference")
+        email = tracker.get_slot("booking_lookup_email")
+
+        logger.info("ACTION_RETRIEVE_BOOKING | ref=%s | email=%s", reference, email)
+
+        if not reference or not email:
+            return [SlotSet("booking_retrieval_status", "not_found")]
+
+        # Look up booking in Supabase
+        try:
+            from .supabase_client import get_booking_by_reference
+            booking = get_booking_by_reference(reference)
+        except Exception as exc:
+            logger.error("Booking lookup failed: %s", exc)
+            return [SlotSet("booking_retrieval_status", "not_found")]
+
+        if not booking:
+            return [SlotSet("booking_retrieval_status", "not_found")]
+
+        # Verify email matches — prevents unauthorized access
+        booking_email = booking.get("passenger_email", "").strip().lower()
+        lookup_email = email.strip().lower()
+
+        if booking_email != lookup_email:
+            logger.warning("BOOKING AUTH FAILED | ref=%s | expected=%s | got=%s",
+                          reference, booking_email, lookup_email)
+            return [SlotSet("booking_retrieval_status", "unauthorized")]
+
+        # Build the details text
+        details = (
+            f"Reference: {booking.get('booking_reference', reference)}\n"
+            f"Route: {booking.get('origin_code', '?')} -> {booking.get('destination_code', '?')}\n"
+            f"Departure: {booking.get('departure_date', '?')}\n"
+            f"Passenger: {booking.get('passenger_title', '')} "
+            f"{booking.get('given_name', '')} {booking.get('family_name', '')}\n"
+            f"Status: {booking.get('status', 'confirmed')}"
+        )
+
+        return [
+            SlotSet("booking_retrieval_status", "found"),
+            SlotSet("booking_details_text", details),
+            SlotSet("pending_bot_message", details),
+        ]
+
+
+class ActionGuardrailBookingResponse(Action):
+    """Screen booking details through guardrail before showing to user."""
+
+    def name(self) -> Text:
+        return "action_guardrail_booking_response"
+
+    def run(self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]) -> List[EventType]:
+        details = tracker.get_slot("booking_details_text") or ""
+
+        if not details:
+            return [SlotSet("guardrail_passed", True)]
+
+        logger.info("ACTION_GUARDRAIL_BOOKING | screening booking details")
+        result = _post_crew("/guardrail", {
+            "draft_message": details,
+            "context": {"type": "booking_retrieval"},
+        })
+
+        if "error" in result:
+            # Fail-closed for booking retrieval (unlike general guardrail)
+            return [SlotSet("guardrail_passed", False),
+                    SlotSet("guardrail_reason", "Security check unavailable")]
+
+        return [
+            SlotSet("guardrail_passed", result.get("passed", False)),
+            SlotSet("guardrail_reason", result.get("reason", "")),
+        ]

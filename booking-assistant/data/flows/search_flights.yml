@@ -25,15 +25,15 @@ flows:
       - collect: trip_type
         description: >
           Whether the journey is one_way, return, or multi_city.
-          Only fill this slot if the user has explicitly stated the trip type,
-          for example by saying "one way", "return", "round trip", or naming
-          multiple destinations. Never infer or default the trip type when the
-          user has not said it. If the trip type is not stated, leave empty.
-        ask_before_filling: true
-
+          Fill this from the user's message if stated (e.g. "return flight",
+          "one way", "round trip"). If a return date is mentioned, set to
+          "return". If not stated at all, ask.
+          
       - id: ask_origin
         collect: origin
-        description: The city or airport the passenger is departing from.
+        description: >
+          The city or airport the passenger is departing from.
+          Extract from the user's message if mentioned.
 
       - action: action_resolve_origin
         next:
@@ -101,7 +101,9 @@ flows:
 
       - id: ask_departure_date
         collect: departure_date
-        description: The date of the outbound flight.
+        description: >
+          The date of the outbound flight. Extract from the user's message
+          if mentioned (e.g. "on 29th August 2026").
 
       - action: action_validate_departure_date
         next:
@@ -115,7 +117,9 @@ flows:
 
       - id: ask_return_date
         collect: return_date
-        description: The date of the return flight.
+        description: >
+          The date of the return flight. Extract from the user's message
+          if mentioned (e.g. "return on 30th November").
 
       - action: action_validate_return_date
         next:
@@ -139,7 +143,8 @@ flows:
         description: >
           The total number of passengers travelling, as a digit.
           Convert words to digits: "two" becomes 2, "a couple" becomes 2,
-          "just me" becomes 1. Output only the number.
+          "just me" becomes 1, "3 people accompanying me" becomes 4 (3 + the user).
+          Extract from the user's message if mentioned.
         next:
           - if: slots.passenger_count > 1
             then: too_many_passengers
@@ -156,7 +161,8 @@ flows:
           economy, premium_economy, business, first.
           Map "first class" to "first", "business class" to "business",
           "premium economy" to "premium_economy", and "economy class" or
-          "coach" to "economy". Never output any other value.
+          "coach" to "economy". Extract from the user's message if mentioned.
+          If not mentioned, ask.
 
       # --- CrewAI ValidationCrew (Role 1) ---
       - action: utter_validating

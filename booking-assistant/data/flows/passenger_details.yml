@@ -5,6 +5,7 @@ flows:
     description: >
       Collect the traveller's identity and contact details after a flight
       option has been chosen. Only used once an offer has been selected.
+      Ask for ALL details at once, then only follow up on missing ones.
 
     persisted_slots:
       - given_name
@@ -16,14 +17,13 @@ flows:
       - passenger_phone
 
     steps:
-      - action: utter_passenger_intro
+      - action: utter_passenger_all_at_once
 
       - id: ask_given_name
         collect: given_name
         description: >
           The passenger's first (given) name exactly as printed on their
-          passport. Only fill from what the user explicitly provides.
-        ask_before_filling: true
+          passport. Extract from the user's response if provided.
 
       - action: action_validate_given_name
         next:
@@ -39,38 +39,23 @@ flows:
         collect: family_name
         description: >
           The passenger's family (last) name exactly as printed on their
-          passport. Only fill from what the user explicitly provides.
-        ask_before_filling: true
+          passport. Extract from the user's response if provided.
 
       - action: action_validate_family_name
         next:
           - if: slots.family_name is null
             then: invalid_family_name
-          - else: ask_born_on
+          - else: ask_passenger_title
 
       - id: invalid_family_name
         action: utter_invalid_family_name
         next: ask_family_name
 
-      - id: ask_born_on
-        collect: born_on
-        description: The passenger's date of birth as shown on their passport.
-        ask_before_filling: true
-
-      - action: action_validate_dob
-        next:
-          - if: slots.born_on is null
-            then: invalid_born_on
-          - else: ask_passenger_title
-
-      - id: invalid_born_on
-        action: utter_invalid_born_on
-        next: ask_born_on
-
       - id: ask_passenger_title
         collect: passenger_title
         description: >
           The passenger's title. Must be one of mr, ms, mrs, miss or dr.
+          Extract from the user's response if provided.
 
       - action: action_validate_title
         next:
@@ -86,24 +71,39 @@ flows:
         collect: passenger_gender
         description: >
           The gender recorded on the passenger's travel document.
-          Must be either m or f. Never infer this from the passenger's
-          name or title — only fill it from what the user states.
-        ask_before_filling: true
+          Must be either m or f. Extract from the user's response if provided.
 
       - action: action_validate_gender
         next:
           - if: slots.passenger_gender is null
             then: invalid_passenger_gender
-          - else: ask_passenger_email
+          - else: ask_born_on
 
       - id: invalid_passenger_gender
         action: utter_invalid_passenger_gender
         next: ask_passenger_gender
 
+      - id: ask_born_on
+        collect: born_on
+        description: >
+          The passenger's date of birth. Extract from the user's response
+          if provided.
+
+      - action: action_validate_dob
+        next:
+          - if: slots.born_on is null
+            then: invalid_born_on
+          - else: ask_passenger_email
+
+      - id: invalid_born_on
+        action: utter_invalid_born_on
+        next: ask_born_on
+
       - id: ask_passenger_email
         collect: passenger_email
-        description: The passenger's own email address.
-        ask_before_filling: true
+        description: >
+          The passenger's own email address. Extract from the user's response
+          if provided.
 
       - action: action_validate_email
         next:
@@ -119,8 +119,8 @@ flows:
         collect: passenger_phone
         description: >
           The passenger's phone number in international format, beginning
-          with a plus sign and country code.
-        ask_before_filling: true
+          with a plus sign and country code. Extract from the user's response
+          if provided.
 
       - action: action_validate_phone
         next:
