@@ -273,6 +273,36 @@ slots:
     mappings:
       - type: from_llm
 
+  repriced_offer:
+    type: any
+    mappings:
+      - type: controlled
+
+  reprice_status:
+    type: text
+    mappings:
+      - type: controlled
+
+  price_change_text:
+    type: text
+    mappings:
+      - type: controlled
+
+  confirmation_text:
+    type: text
+    mappings:
+      - type: controlled
+
+  idempotency_key:
+    type: text
+    mappings:
+      - type: controlled
+
+  order_type:
+    type: text
+    mappings:
+      - type: controlled
+
 responses:
   utter_greet:
     - text: "Hi! I'm Emi, your virtual flight assistant. I can help you with flight search, booking, and travel policy questions. How can I help?"
@@ -405,38 +435,44 @@ responses:
   utter_passenger_details_done:
     - text: "Thank you. I have the passenger details for {passenger_title} {given_name} {family_name}."
 
+  utter_repricing:
+    - text: "Let me check that this fare is still available at the price I showed you."
+
+  utter_price_changed:
+    - text: "{price_change_text}"
+
+  utter_offer_gone:
+    - text: "That fare is no longer available — airlines hold prices only briefly. You'll need to search again to see current options."
+
+  utter_reprice_failed:
+    - text: "I couldn't confirm the current price just now, so I won't proceed with the booking. Please try again shortly."
+
+  utter_confirmation_summary:
+    - text: "Please check these details carefully before I book:\n\n{confirmation_text}"
+
+  utter_ask_booking_confirmed:
+    - text: "Shall I go ahead and book this? Please reply yes or no."
+
+  utter_booking_cancelled:
+    - text: "No problem — I haven't booked anything. Let me know if you'd like to look at other options."
+
+  utter_booking_ok:
+    - text: "Your booking is confirmed. Your airline reference is {booking_reference}. Keep this — you'll need it to check in or manage the booking with the airline."
+
+  utter_booking_failed:
+    - text: "I wasn't able to complete the booking, and no payment has been taken. Please try again, or contact support with the details of this conversation."
+  
+  utter_single_passenger_only:
+    - text: "I can currently book for one passenger at a time. Group and family bookings need details for every traveller, which I'm not yet able to collect. Would you like to search for a single passenger instead?"
+
   utter_validating:
     - text: "Let me validate your booking details..."
 
   utter_validation_failed:
     - text: "There's an issue with your booking details: {validation_reason}. Could you correct that?"
 
-  utter_crew_searching:
-    - text: "Searching for the best flights — this may take a moment while I compare options..."
-
-  utter_crew_search_result:
-    - text: "{crew_search_result}"
-
-  utter_crew_search_failed:
-    - text: "Sorry, I couldn't complete the flight search right now. Please try again in a moment."
-
-  utter_booking_summary:
-    - text: "Here's your booking summary:\n\nFlight: {origin_display} → {destination_display}\nDeparture: {departure_date}\nPassenger: {passenger_title} {given_name} {family_name}\nCabin: {cabin_class}\n\nShall I go ahead and book this?"
-
-  utter_ask_booking_confirmed:
-    - text: "Would you like to confirm this booking? (yes/no)"
-
   utter_verification_failed:
     - text: "I found an issue with the booking details: {verification_reason}. Please check and try again."
-
-  utter_booking_confirmed:
-    - text: "Your booking is confirmed! Reference: {booking_reference}. You'll receive a confirmation email shortly."
-
-  utter_booking_failed:
-    - text: "Sorry, I couldn't complete the booking. Please try again or contact support."
-
-  utter_booking_cancelled:
-    - text: "No problem — the booking has been cancelled. Let me know if you'd like to search again."
 
 actions:
     - action_validate_departure_date
@@ -455,9 +491,10 @@ actions:
     - action_validate_gender
     - action_validate_email
     - action_validate_phone
+    - action_reprice_offer
+    - action_create_booking
     - action_validate_booking
     - action_crew_search
     - action_answer_policy
     - action_verify_booking
     - action_guardrail_check
-    - action_create_booking

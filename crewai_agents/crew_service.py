@@ -82,7 +82,7 @@ class PolicyResponse(BaseModel):
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok", "service": "crew-service"}
+    return {"status": "ok", "service": "crew-service", "crews": 5}
 
 
 @app.post("/validate", response_model=ValidationResponse)
@@ -145,6 +145,65 @@ def answer_policy(request: PolicyRequest):
         answer=result.get("answer", ""),
         sources=result.get("sources", []),
         question_type=result.get("question_type", "policy"),
+    )
+
+
+class VerifyRequest(BaseModel):
+    order_payload: Dict[str, Any] = {}
+    passenger_details: Dict[str, Any] = {}
+    selected_offer: Dict[str, Any] = {}
+    conversation_slots: Dict[str, Any] = {}
+
+class VerifyResponse(BaseModel):
+    verified: bool
+    issues: list = []
+    reason: str = ""
+
+@app.post("/verify", response_model=VerifyResponse)
+def verify_booking(request: VerifyRequest):
+    """BookingReviewCrew (Role 5) — pre-booking payload verification."""
+    logger.info("POST /verify | offer_id=%s", request.selected_offer.get("id"))
+    from crewai_agents.booking_review_crew import run_booking_review
+    try:
+        result = run_booking_review(
+            order_payload=request.order_payload,
+            passenger_details=request.passenger_details,
+            selected_offer=request.selected_offer,
+            conversation_slots=request.conversation_slots,
+        )
+    except Exception as exc:
+        logger.error("BookingReviewCrew failed: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Booking review error: {exc}")
+    return VerifyResponse(
+        verified=result.get("verified", False),
+        issues=result.get("issues", []),
+        reason=result.get("reason", ""),
+    )
+
+
+class GuardrailRequest(BaseModel):
+    draft_message: str
+    context: Optional[Dict[str, Any]] = None
+
+class GuardrailResponse(BaseModel):
+    passed: bool
+    reason: str = ""
+    tier: str = "regex"
+
+@app.post("/guardrail", response_model=GuardrailResponse)
+def check_guardrail(request: GuardrailRequest):
+    """GuardrailCrew (Role 6) — outbound message safety screening."""
+    logger.info("POST /guardrail | message_len=%d", len(request.draft_message))
+    from crewai_agents.guardrail_crew import run_guardrail
+    try:
+        result = run_guardrail(draft_message=request.draft_message, context=request.context)
+    except Exception as exc:
+        logger.error("GuardrailCrew failed: %s", exc)
+        return GuardrailResponse(passed=True, reason=f"Guardrail error: {exc}", tier="error")
+    return GuardrailResponse(
+        passed=result.get("passed", True),
+        reason=result.get("reason", ""),
+        tier=result.get("tier", "regex"),
     )
 
 

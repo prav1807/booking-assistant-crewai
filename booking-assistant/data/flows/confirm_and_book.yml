@@ -1,50 +1,71 @@
+version: "3.1"
+
 flows:
   confirm_and_book:
     description: >
-      Confirm the booking and create the order. Use this flow after passenger
-      details have been collected and the user confirms they want to proceed.
+      Re-price the chosen flight, show a confirmation summary, obtain the
+      user's explicit agreement, and create the booking. Only used once an
+      offer has been selected and passenger details collected.
     steps:
-      - action: utter_booking_summary
+      - action: utter_repricing
 
-      - collect: booking_confirmed
-        description: >
-          Whether the user confirms they want to proceed with the booking.
-          Must be true or false. "Yes", "go ahead", "confirm" map to true.
-          "No", "cancel", "wait" map to false.
-        ask_before_filling: true
+      - id: reprice
+        action: action_reprice_offer
         next:
-          - if: slots.booking_confirmed
-            then: verify_payload
-          - else: booking_cancelled
+          - if: slots.reprice_status = "gone"
+            then: offer_gone
+          - if: slots.reprice_status = "error"
+            then: reprice_failed
+          - if: slots.reprice_status = "changed"
+            then: price_changed
+          - else: show_summary
 
-      # --- CrewAI BookingReviewCrew (Role 5) verifies before payment ---
-      - id: verify_payload
-        action: action_verify_booking
-        next:
-          - if: slots.booking_verified
-            then: do_book
-          - else: verification_failed
-
-      - id: verification_failed
-        action: utter_verification_failed
+      - id: offer_gone
+        action: utter_offer_gone
         next: END
 
-      # --- Create the booking ---
+      - id: reprice_failed
+        action: utter_reprice_failed
+        next: END
+
+      - id: price_changed
+        action: utter_price_changed
+        next: show_summary
+
+      - id: show_summary
+        action: utter_confirmation_summary
+
+      - id: ask_confirm
+        collect: booking_confirmed
+        description: >
+          Whether the user explicitly agrees to book this flight at the
+          price and on the conditions just shown. Set true only if the user
+          clearly agrees. Set false if they decline, hesitate, or ask to
+          change something. Never assume agreement.
+        ask_before_filling: true
+
+      - id: check_confirm
+        action: action_listen
+        next:
+          - if: slots.booking_confirmed
+            then: do_book
+          - else: cancelled
+
+      - id: cancelled
+        action: utter_booking_cancelled
+        next: END
+
       - id: do_book
         action: action_create_booking
         next:
-          - if: slots.booking_status = "confirmed"
-            then: booking_success
-          - else: booking_error
+          - if: slots.booking_status = "ok"
+            then: booked
+          - else: book_failed
 
-      - id: booking_success
-        action: utter_booking_confirmed
+      - id: booked
+        action: utter_booking_ok
         next: END
 
-      - id: booking_error
+      - id: book_failed
         action: utter_booking_failed
-        next: END
-
-      - id: booking_cancelled
-        action: utter_booking_cancelled
         next: END

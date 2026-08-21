@@ -428,3 +428,138 @@ def normalise_name(raw: str) -> Optional[str]:
     if not all(ch.isalpha() or ch in " -'" for ch in text):
         return None
     return text
+
+
+import uuid
+
+
+def get_offer(offer_id: str) -> Optional[Dict[str, Any]]:
+    """Re-fetch an offer immediately before commitment (FR12).
+
+    Offers go stale. The price shown minutes ago may no longer be the price
+    charged, so the offer is re-read and re-confirmed before any order is
+    created (failure mode F7).
+    """
+    try:
+        response = requests.get(
+            f"{DUFFEL_API_BASE}/air/offers/{offer_id}",
+            params={"return_available_services": "false"},
+            headers=_headers(),
+            timeout=REQUEST_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException as exc:
+        raise DuffelError(f"Could not reach Duffel: {exc}") from exc
+
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        raise DuffelError(
+            f"Duffel returned {response.status_code}: {response.text[:200]}"
+        )
+
+    return response.json().get("data")
+
+
+def new_idempotency_key() -> str:
+    return f"bk_{uuid.uuid4().hex}"
+
+
+def create_order(
+    offer_id: str,
+    passengers: List[Dict[str, Any]],
+    idempotency_key: str,
+    order_type: str = "hold",
+    total_amount: Optional[str] = None,
+    total_currency: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Create an order. This is the irreversible step.
+
+    order_type is 'hold' (no payment now) or 'instant' (paid from the
+    Duffel balance). Card payment via hosted components is out of scope
+    for this prototype (see Chapter 5).
+    """
+    data: Dict[str, Any] = {
+        "type": order_type,
+        "selected_offers": [offer_id],
+        "passengers": passengers,
+    }
+
+    if order_type == "instant":
+        data["payments"] = [
+            {
+                "type": "balance",
+                "amount": total_amount,
+                "currency": total_currency,
+            }
+        ]
+
+    logger.info(
+        "ORDER CREATE | offer=%s | type=%s | key=%s",
+        offer_id,
+        order_type,
+        idempotency_key,
+    )
+
+    try:
+        response = requests.post(
+            f"{DUFFEL_API_BASE}/air/orders",
+            headers={
+                **_headers(),
+                "Content-Type": "application/json",
+                "Idempotency-Key": idempotency_key,
+            },
+            json={"data": data},
+            timeout=SEARCH_TIMEOUT_SECONDS,
+        )
+    except requests.RequestException as exc:
+        # The order may or may not have been created. The caller must
+        # reconcile rather than retry blindly (F8).
+        raise DuffelError(f"Order request did not complete: {exc}") from exc
+
+    if response.status_code not in (200, 201):
+        logger.error(
+            "ORDER CREATE FAILED | %s | %s", response.status_code, response.text[:500]
+        )
+        raise DuffelError(
+            f"Duffel returned {response.status_code}: {response.text[:300]}"
+        )
+
+    return response.json().get("data", {})
+
+
+def format_confirmation(offer: Dict[str, Any], passenger_line: str) -> str:
+    """Render the confirmation summary (FR13).
+
+    Every figure here is read from the provider's response. Nothing about
+    price, timing or conditions is generated.
+    """
+    summary = summarise_offer(offer)
+    lines = [
+        f"Passenger: {passenger_line}",
+        f"Airline: {summary['airline']}",
+    ]
+    for leg in summary["legs"]:
+        lines.append(f"  {format_leg(leg)}")
+    lines.append(f"Total: {summary['total_currency']} {summary['total_amount']}")
+
+    conditions = offer.get("conditions") or {}
+    def describe(kind: str, label: str) -> str:
+        """Render one condition. A null value means the airline did not
+        supply the term — which is NOT the same as it being unrestricted.
+        Saying so explicitly is the direct mitigation for the class of harm
+        in Moffatt v. Air Canada (2024)."""
+        cond = conditions.get(kind)
+        if cond is None:
+            return f"{label}: not stated by the airline — check before you travel"
+        if not cond.get("allowed"):
+            return f"{label}: not allowed"
+        penalty = cond.get("penalty_amount")
+        currency = cond.get("penalty_currency") or ""
+        if penalty:
+            return f"{label}: allowed, fee {currency} {penalty}"
+        return f"{label}: allowed, no fee"
+
+    lines.append(describe("change_before_departure", "Changes"))
+    lines.append(describe("refund_before_departure", "Refunds"))
+
+    return "\n".join(lines)
