@@ -1,0 +1,50 @@
+flows:
+  confirm_and_book:
+    description: >
+      Confirm the booking and create the order. Use this flow after passenger
+      details have been collected and the user confirms they want to proceed.
+    steps:
+      - action: utter_booking_summary
+
+      - collect: booking_confirmed
+        description: >
+          Whether the user confirms they want to proceed with the booking.
+          Must be true or false. "Yes", "go ahead", "confirm" map to true.
+          "No", "cancel", "wait" map to false.
+        ask_before_filling: true
+        next:
+          - if: slots.booking_confirmed
+            then: verify_payload
+          - else: booking_cancelled
+
+      # --- CrewAI BookingReviewCrew (Role 5) verifies before payment ---
+      - id: verify_payload
+        action: action_verify_booking
+        next:
+          - if: slots.booking_verified
+            then: do_book
+          - else: verification_failed
+
+      - id: verification_failed
+        action: utter_verification_failed
+        next: END
+
+      # --- Create the booking ---
+      - id: do_book
+        action: action_create_booking
+        next:
+          - if: slots.booking_status = "confirmed"
+            then: booking_success
+          - else: booking_error
+
+      - id: booking_success
+        action: utter_booking_confirmed
+        next: END
+
+      - id: booking_error
+        action: utter_booking_failed
+        next: END
+
+      - id: booking_cancelled
+        action: utter_booking_cancelled
+        next: END

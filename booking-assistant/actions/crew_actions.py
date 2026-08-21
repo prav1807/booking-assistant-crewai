@@ -199,3 +199,76 @@ class ActionAnswerPolicy(Action):
             SlotSet("policy_answer", result.get("answer")),
             SlotSet("policy_sources", result.get("sources", [])),
         ]
+
+
+class ActionVerifyBooking(Action):
+    """BookingReviewCrew (Role 5) — verify order payload before submission."""
+
+    def name(self) -> Text:
+        return "action_verify_booking"
+
+    def run(self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]) -> List[EventType]:
+        payload = {
+            "order_payload": tracker.get_slot("duffel_request_payload") or {},
+            "passenger_details": {
+                "given_name": tracker.get_slot("given_name"),
+                "family_name": tracker.get_slot("family_name"),
+                "born_on": tracker.get_slot("born_on"),
+                "title": tracker.get_slot("passenger_title"),
+                "gender": tracker.get_slot("passenger_gender"),
+                "email": tracker.get_slot("passenger_email"),
+                "phone": tracker.get_slot("passenger_phone"),
+            },
+            "selected_offer": {
+                "id": tracker.get_slot("selected_offer_id"),
+            },
+            "conversation_slots": {
+                "origin_code": tracker.get_slot("origin_code"),
+                "destination_code": tracker.get_slot("destination_code"),
+                "selected_offer_id": tracker.get_slot("selected_offer_id"),
+                "passenger_count": tracker.get_slot("passenger_count"),
+                "given_name": tracker.get_slot("given_name"),
+                "family_name": tracker.get_slot("family_name"),
+                "born_on": tracker.get_slot("born_on"),
+                "passenger_title": tracker.get_slot("passenger_title"),
+                "passenger_gender": tracker.get_slot("passenger_gender"),
+                "passenger_email": tracker.get_slot("passenger_email"),
+                "passenger_phone": tracker.get_slot("passenger_phone"),
+            },
+        }
+
+        logger.info("ACTION_VERIFY_BOOKING | offer_id=%s", tracker.get_slot("selected_offer_id"))
+        result = _post_crew("/verify", payload)
+
+        if "error" in result:
+            return [SlotSet("booking_verified", False),
+                    SlotSet("verification_reason", "Verification service unavailable.")]
+
+        return [
+            SlotSet("booking_verified", result.get("verified", False)),
+            SlotSet("verification_reason", result.get("reason", "")),
+        ]
+
+
+class ActionGuardrailCheck(Action):
+    """GuardrailCrew (Role 6) — screen outbound messages for safety."""
+
+    def name(self) -> Text:
+        return "action_guardrail_check"
+
+    def run(self, dispatcher: CollectingDispatcher, tracker: Tracker, domain: Dict[Text, Any]) -> List[EventType]:
+        draft = tracker.get_slot("pending_bot_message") or ""
+
+        if not draft:
+            return [SlotSet("guardrail_passed", True)]
+
+        logger.info("ACTION_GUARDRAIL_CHECK | message_len=%d", len(draft))
+        result = _post_crew("/guardrail", {"draft_message": draft})
+
+        if "error" in result:
+            return [SlotSet("guardrail_passed", True)]
+
+        return [
+            SlotSet("guardrail_passed", result.get("passed", True)),
+            SlotSet("guardrail_reason", result.get("reason", "")),
+        ]

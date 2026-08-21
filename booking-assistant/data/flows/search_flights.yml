@@ -151,13 +151,26 @@ flows:
       - action: action_search_flights
         next:
           - if: slots.search_status = "ok"
-            then: offers_found
+            then: crew_rank
           - if: slots.search_status = "empty"
             then: no_offers
           - else: search_failed
 
+      # --- CrewAI SearchStrategyCrew (Roles 2+3) ranks offers ---
+      - id: crew_rank
+        action: action_crew_search
+        next:
+          - if: slots.crew_search_status = "ok"
+            then: offers_found
+          - else: offers_found
+
       - id: offers_found
         action: utter_offers_found
+        next: guardrail_offers
+
+      # --- CrewAI GuardrailCrew (Role 6) screens outbound ---
+      - id: guardrail_offers
+        action: action_guardrail_check
         next: show_offers
 
       - id: show_offers

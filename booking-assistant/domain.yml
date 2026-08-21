@@ -197,6 +197,46 @@ slots:
     type: text
     mappings:
       - type: from_llm
+
+  booking_confirmed:
+    type: bool
+    mappings:
+      - type: from_llm
+
+  booking_verified:
+    type: bool
+    mappings:
+      - type: controlled
+
+  verification_reason:
+    type: text
+    mappings:
+      - type: controlled
+
+  booking_status:
+    type: text
+    mappings:
+      - type: controlled
+
+  booking_reference:
+    type: text
+    mappings:
+      - type: controlled
+
+  guardrail_passed:
+    type: bool
+    mappings:
+      - type: controlled
+
+  guardrail_reason:
+    type: text
+    mappings:
+      - type: controlled
+
+  pending_bot_message:
+    type: text
+    mappings:
+      - type: controlled
   
   given_name:
     type: text
@@ -380,6 +420,24 @@ responses:
   utter_crew_search_failed:
     - text: "Sorry, I couldn't complete the flight search right now. Please try again in a moment."
 
+  utter_booking_summary:
+    - text: "Here's your booking summary:\n\nFlight: {origin_display} → {destination_display}\nDeparture: {departure_date}\nPassenger: {passenger_title} {given_name} {family_name}\nCabin: {cabin_class}\n\nShall I go ahead and book this?"
+
+  utter_ask_booking_confirmed:
+    - text: "Would you like to confirm this booking? (yes/no)"
+
+  utter_verification_failed:
+    - text: "I found an issue with the booking details: {verification_reason}. Please check and try again."
+
+  utter_booking_confirmed:
+    - text: "Your booking is confirmed! Reference: {booking_reference}. You'll receive a confirmation email shortly."
+
+  utter_booking_failed:
+    - text: "Sorry, I couldn't complete the booking. Please try again or contact support."
+
+  utter_booking_cancelled:
+    - text: "No problem — the booking has been cancelled. Let me know if you'd like to search again."
+
 actions:
     - action_validate_departure_date
     - action_validate_return_date
@@ -400,3 +458,6 @@ actions:
     - action_validate_booking
     - action_crew_search
     - action_answer_policy
+    - action_verify_booking
+    - action_guardrail_check
+    - action_create_booking
