@@ -2,17 +2,19 @@ flows:
   answer_policy_question:
     description: >
       Answer questions about airline policies, baggage rules, dangerous goods,
-      visa and entry requirements, fare rules, refunds, ticket changes, or
-      disability assistance. Use this flow when the user asks an informational
-      question about travel rules or regulations rather than requesting a
-      booking action.
+      visa and entry requirements, fare rules, refunds, ticket changes,
+      disability assistance, or any travel regulation question. Use this flow
+      whenever the user asks an informational or policy question — even if
+      they are in the middle of booking a flight or providing passenger details.
+      Examples: "What's the baggage limit?", "Do I need a visa?",
+      "Can I bring batteries?", "What's the refund policy?",
+      "Is there wheelchair assistance?", "How much checked baggage?".
+    always_include_in_prompt: true
     steps:
       - collect: policy_question
         description: >
           The user's policy or eligibility question. Fill this from whatever
-          the user just asked. Examples: "What is the carry-on baggage limit?",
-          "Do I need a visa for Japan?", "Can I bring a lithium battery?",
-          "What's the refund policy?"
+          the user just asked.
 
       - action: action_answer_policy
         next: END

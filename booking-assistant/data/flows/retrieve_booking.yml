@@ -1,0 +1,52 @@
+flows:
+  retrieve_booking:
+    description: >
+      Retrieve and display an existing booking. Use this flow when the user
+      wants to check, view, look up, or find a booking they already made.
+      The guardrail crew screens the response before showing it to prevent
+      leaking another user's personal information.
+    steps:
+      - collect: booking_lookup_reference
+        description: >
+          The booking reference or PNR code the user wants to look up.
+          This is usually a 6-character alphanumeric code.
+        ask_before_filling: true
+
+      - collect: booking_lookup_email
+        description: >
+          The email address associated with the booking, used to verify
+          the user is authorised to view it. Must match the email on file.
+        ask_before_filling: true
+
+      - id: do_retrieve
+        action: action_retrieve_booking
+        next:
+          - if: slots.booking_retrieval_status = "found"
+            then: screen_response
+          - if: slots.booking_retrieval_status = "unauthorized"
+            then: unauthorized
+          - else: not_found
+
+      # --- GuardrailCrew screens booking details before showing ---
+      - id: screen_response
+        action: action_guardrail_booking_response
+        next:
+          - if: slots.guardrail_passed
+            then: show_booking
+          - else: blocked
+
+      - id: show_booking
+        action: utter_booking_details
+        next: END
+
+      - id: not_found
+        action: utter_booking_not_found
+        next: END
+
+      - id: unauthorized
+        action: utter_booking_unauthorized
+        next: END
+
+      - id: blocked
+        action: utter_booking_blocked
+        next: END
